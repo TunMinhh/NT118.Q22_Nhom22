@@ -39,20 +39,6 @@ val AccentColor = Color(0xFF0296E5)
 
 // --- DATA CLASS (Đã cập nhật theo Database mới nhất) ---
 data class Movie(
-//    val id: String? = null,
-//    val title: String? = null,         // Tên phim
-//    val director: String? = null,
-//    val cast: List<String>? = null,
-//    val genres: List<String>? = null,
-//    val duration: Int? = null,
-//    val isShowing: Boolean? = null,
-//    val isTrending: Boolean? = null,
-//    val posterUrl: String? = null,
-//    val rating: Double? = null,        // Double để nhận điểm thập phân (VD: 8.9)
-//    val releaseDate: String? = null,   // Ngày ra mắt
-//    val synopsis: String? = null,      // Tóm tắt nội dung
-//    val ageRating: String? = null
-
     val ageRating: String? = null,
     val cast: List<String>? = null,
     val director: String? = null,

@@ -103,7 +103,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // Ô nhập mật khẩu có nút ẩn hiện
             TextField(
                 value = password,
                 onValueChange = { password = it },

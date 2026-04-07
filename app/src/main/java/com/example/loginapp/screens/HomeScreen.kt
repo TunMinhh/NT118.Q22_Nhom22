@@ -30,9 +30,9 @@ fun HomeScreen(
 ) {
 	Column(
 		modifier = Modifier
-			.fillMaxSize()
-			.background(Color.White)
-			.padding(20.dp),
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(20.dp),
 		verticalArrangement = Arrangement.Center
 	) {
 		Text(
@@ -52,7 +52,7 @@ fun HomeScreen(
 				Spacer(modifier = Modifier.height(8.dp))
 				Text(text = "Email: ${userEmail ?: "Chưa có dữ liệu"}")
 				Spacer(modifier = Modifier.height(8.dp))
-				Text(text = "Bước tiếp theo: tạo Home thật để đọc phim từ Firestore.")
+                Text(text = "Bước tiếp theo: tạo Home thật để đọc phim từ Firestore.")
 			}
 		}
 

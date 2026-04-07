@@ -39,6 +39,58 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.loginapp.R
 import com.example.loginapp.ui.theme.LoginAppTheme
+//By cam
+import com.google.firebase.auth.FirebaseAuth
+
+@Composable
+fun ForgotPasswordScreenWithLogic(onBackClick: () -> Unit) {
+    // 1. Tạo các biến trạng thái để điều khiển giao diện
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var infoMessage by remember { mutableStateOf<String?>(null) }
+
+    // 2. Gọi Firebase Auth
+    val auth = FirebaseAuth.getInstance()
+
+    // 3. Gọi lại cái giao diện xịn của bạn bạn ở đây và truyền logic vào
+    ForgotPasswordScreen(
+        onBackClick = onBackClick,
+        isLoading = isLoading,
+        errorMessage = errorMessage,
+        infoMessage = infoMessage,
+        onResetPasswordClick = { email ->
+            // Khi người dùng bấm nút "GỬI YÊU CẦU", code ở đây sẽ chạy
+
+            // Xóa thông báo cũ
+            errorMessage = null
+            infoMessage = null
+
+            if (email.isBlank()) {
+                errorMessage = "Vui lòng nhập email của bạn."
+                return@ForgotPasswordScreen
+            }
+
+            // Bật vòng xoay loading
+            isLoading = true
+
+            // Gọi Firebase gửi email
+            auth.sendPasswordResetEmail(email)
+                .addOnCompleteListener { task ->
+                    // Tắt vòng xoay loading khi có kết quả
+                    isLoading = false
+
+                    if (task.isSuccessful) {
+                        infoMessage = "Đã gửi link khôi phục! Vui lòng kiểm tra hộp thư."
+                        errorMessage = null
+                    } else {
+                        errorMessage = "Lỗi: ${task.exception?.localizedMessage}"
+                        infoMessage = null
+                    }
+                }
+        }
+    )
+}
+//
 
 @Composable
 fun ForgotPasswordScreen(
@@ -96,7 +148,6 @@ fun ForgotPasswordScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Ô nhập email hoặc số điện thoại
             TextField(
                 value = account,
                 onValueChange = { account = it },

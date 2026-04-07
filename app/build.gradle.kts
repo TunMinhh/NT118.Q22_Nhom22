@@ -6,9 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.loginapp"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.loginapp"
@@ -62,5 +60,5 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }

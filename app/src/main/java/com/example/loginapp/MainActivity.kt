@@ -10,6 +10,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.loginapp.auth.AuthViewModel
+import com.example.loginapp.list_movie.MainScreen
 import com.example.loginapp.screens.ForgotPasswordScreen
 import com.example.loginapp.screens.HomeScreen
 import com.example.loginapp.screens.LoginScreen
@@ -22,6 +23,7 @@ private object AppRoute {
     const val SIGN_UP = "sign_up"
     const val FORGOT_PASSWORD = "forgot_password"
     const val HOME = "home"
+
 }
 
 class MainActivity : ComponentActivity() {
@@ -38,7 +40,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
-    // Tạo bộ điều hướng trung tâm cho ứng dụng
     val navController = rememberNavController()
     val uiState = authViewModel.uiState
 
@@ -104,19 +105,22 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
             )
         }
 
-        composable(AppRoute.HOME) {
-            HomeScreen(
-                displayName = uiState.displayName,
-                userEmail = uiState.userEmail,
-                infoMessage = uiState.infoMessage,
-                onSignOutClick = {
-                    authViewModel.signOut()
-                    navController.navigate(AppRoute.LOGIN) {
-                        popUpTo(AppRoute.HOME) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
-            )
+//        composable(AppRoute.HOME) {
+//            HomeScreen(
+//                displayName = uiState.displayName,
+//                userEmail = uiState.userEmail,
+//                infoMessage = uiState.infoMessage,
+//                onSignOutClick = {
+//                    authViewModel.signOut()
+//                    navController.navigate(AppRoute.LOGIN) {
+//                        popUpTo(AppRoute.HOME) { inclusive = true }
+//                        launchSingleTop = true
+//                    }
+//                }
+//            )
+//        }
+        composable(route=AppRoute.HOME) {
+            MainScreen()
         }
     }
 
