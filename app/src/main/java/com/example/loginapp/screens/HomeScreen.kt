@@ -68,7 +68,8 @@ fun HomeScreen(
     displayName: String?,
     userEmail: String?,
     infoMessage: String?,
-    onSignOutClick: () -> Unit
+    onSignOutClick: () -> Unit,
+    onMovieClick: (String) -> Unit
 ) {
 
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
@@ -179,7 +180,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            MovieCarousel(movieList)
+            MovieCarousel(movieList, onMovieClick)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -233,8 +234,6 @@ fun HomeScreen(
                     }
                 }
             }
-
-
         }
     }
 }
@@ -296,7 +295,7 @@ fun BannerCarousel() {
 }
 
 @Composable
-fun MovieCarousel(movieList: List<Movie>) {
+fun MovieCarousel(movieList: List<Movie>, onMovieClick: (String) -> Unit) {
 
     if (movieList.isEmpty()) {
         Text("Đang tải dữ liệu...")
@@ -331,7 +330,13 @@ fun MovieCarousel(movieList: List<Movie>) {
                     scaleX = scale
                     scaleY = scale
                 }
-                .clickable { },
+                .clickable {
+                    if (movie.id.isNotEmpty()){
+                        onMovieClick(movie.id)
+                    }else{
+                        onMovieClick(movie.title)
+                    }
+                },
             shape = RoundedCornerShape(12.dp)
         ) {
 

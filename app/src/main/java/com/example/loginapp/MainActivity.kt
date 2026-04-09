@@ -1,18 +1,22 @@
 package com.example.loginapp
 
+import android.R.attr.type
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.loginapp.auth.AuthViewModel
 import com.example.loginapp.screens.ForgotPasswordScreen
 import com.example.loginapp.screens.HomeScreen
 import com.example.loginapp.screens.LoginScreen
+import com.example.loginapp.screens.MovieDetailScreen
 import com.example.loginapp.screens.SignUpScreen
 import com.example.loginapp.ui.theme.LoginAppTheme
 
@@ -22,6 +26,8 @@ private object AppRoute {
     const val SIGN_UP = "sign_up"
     const val FORGOT_PASSWORD = "forgot_password"
     const val HOME = "home"
+
+    const val MOVIE_DETAIL = "movie_detail"
 }
 
 class MainActivity : ComponentActivity() {
@@ -115,7 +121,22 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
                         popUpTo(AppRoute.HOME) { inclusive = true }
                         launchSingleTop = true
                     }
+                },
+                onMovieClick = { moveId ->
+                    navController.navigate("${AppRoute.MOVIE_DETAIL}/$moveId")
                 }
+            )
+        }
+        //chi tiết phim
+        composable(
+            route = "${AppRoute.MOVIE_DETAIL}/{movieId}",
+            arguments = listOf(navArgument("movieId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val movieId = backStackEntry.arguments?.getString("movieId") ?: ""
+
+            MovieDetailScreen(
+                movieId = movieId,
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

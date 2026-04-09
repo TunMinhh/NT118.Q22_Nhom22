@@ -13,7 +13,10 @@ data class Movie(
     val duration: Int = 0,
     val genres: List<String> = emptyList(),
     val isShowing: Boolean = false,
-    val isTrending: Boolean = false
+    val isTrending: Boolean = false,
+    val synopsis: String = "",
+    val rating: Double = 0.0,
+    val releaseDate: String = "",
 )
 
 fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
@@ -36,3 +39,4 @@ fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
             onResult(emptyList())
         }
 }
+
