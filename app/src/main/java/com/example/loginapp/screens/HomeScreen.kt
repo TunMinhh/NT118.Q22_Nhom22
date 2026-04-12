@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material3.CheckboxDefaults.colors
 import androidx.compose.ui.Alignment
 
+// Dữ liệu tĩnh cho các section tin tức / khuyến mãi phía dưới HomeScreen
 val items = listOf(
     Pair(R.drawable.banner_uu_dai, "Cơ hội trúng quà khi mua online"),
     Pair(R.drawable.thanh_vien_cgv, "Đăng ký thành viên"),
@@ -61,14 +62,14 @@ val videoList = listOf(
 )
 
 
-// Màn hình chính sau khi login
-
+// Màn hình chính sau khi đăng nhập — nền blur, carousel phim, các section tin tức
 @Composable
 fun HomeScreen(
     displayName: String?,
     userEmail: String?,
     infoMessage: String?,
-    onSignOutClick: () -> Unit
+    onSignOutClick: () -> Unit,
+    onMovieClick: (String) -> Unit
 ) {
 
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
@@ -165,10 +166,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            BannerCarousel()
-
-            Spacer(modifier = Modifier.height(20.dp))
-
             Text(
                 text = "Đang Chiếu",
                 color = Color.White,
@@ -179,7 +176,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            MovieCarousel(movieList)
+            MovieCarousel(movieList, onMovieClick)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -233,70 +230,14 @@ fun HomeScreen(
                     }
                 }
             }
-
-
         }
     }
 }
 
+
+// Carousel phim từ Firestore — vuốt ngang, click để vào chi tiết phim
 @Composable
-fun BannerCarousel() {
-
-    val banners = listOf(
-        R.drawable.movie1,
-        R.drawable.movie2,
-        R.drawable.movie3
-    )
-
-    val pagerState = rememberPagerState(
-        initialPage = 5000,
-        pageCount = { 10000 }
-    )
-
-    HorizontalPager(
-        state = pagerState,
-        contentPadding = PaddingValues(horizontal = 60.dp),
-        pageSpacing = 12.dp
-    ) { page ->
-
-        val banner = banners[page % banners.size]
-
-        Card(
-            modifier = Modifier
-                .width(300.dp)
-                .graphicsLayer {
-
-                    val pageOffset =
-                        (pagerState.currentPage - page) +
-                                pagerState.currentPageOffsetFraction
-
-                    val scale =
-                        0.9f + (1 - pageOffset.absoluteValue) * 0.1f
-
-                    scaleX = scale
-                    scaleY = scale
-
-                },
-            shape = RoundedCornerShape(12.dp)
-
-        )
-
-        {
-            Image(
-                painter = painterResource(banner),
-                contentDescription = "banner",
-                modifier = Modifier
-                    .height(160.dp)
-                    .fillMaxWidth(),
-                contentScale = ContentScale.Crop
-            )
-        }
-
-    }
-}
-
-@Composable
-fun MovieCarousel(movieList: List<Movie>) {
+fun MovieCarousel(movieList: List<Movie>, onMovieClick: (String) -> Unit) {
 
     if (movieList.isEmpty()) {
         Text("Đang tải dữ liệu...")
@@ -331,7 +272,13 @@ fun MovieCarousel(movieList: List<Movie>) {
                     scaleX = scale
                     scaleY = scale
                 }
-                .clickable { },
+                .clickable {
+                    if (movie.id.isNotEmpty()){
+                        onMovieClick(movie.id)
+                    }else{
+                        onMovieClick(movie.title)
+                    }
+                },
             shape = RoundedCornerShape(12.dp)
         ) {
 
@@ -376,7 +323,7 @@ fun supportSelection() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // Text chính
             Text (
@@ -491,7 +438,7 @@ fun VideoItem(image: Int, title: String) {
                 contentScale = ContentScale.Crop
             )
 
-            // ▶ icon play
+            // icon play
             Icon(
                 imageVector = Icons.Default.ArrowForwardIos,
                 contentDescription = null,

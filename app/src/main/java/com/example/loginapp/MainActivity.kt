@@ -1,27 +1,32 @@
 package com.example.loginapp
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.loginapp.auth.AuthViewModel
 import com.example.loginapp.screens.ForgotPasswordScreen
-import com.example.loginapp.screens.HomeScreen
 import com.example.loginapp.screens.LoginScreen
+import com.example.loginapp.screens.MainScreen
+import com.example.loginapp.screens.MovieDetailScreen
 import com.example.loginapp.screens.SignUpScreen
 import com.example.loginapp.ui.theme.LoginAppTheme
 
 // Khai báo các route dùng để điều hướng giữa các màn hình
 private object AppRoute {
-    const val LOGIN = "login"
-    const val SIGN_UP = "sign_up"
+    const val LOGIN         = "login"
+    const val SIGN_UP       = "sign_up"
     const val FORGOT_PASSWORD = "forgot_password"
-    const val HOME = "home"
+    const val MAIN          = "main"                // Màn hình chính có bottom nav
+    const val MOVIE_DETAIL  = "movie_detail"        // Màn hình chi tiết phim
 }
 
 class MainActivity : ComponentActivity() {
@@ -44,8 +49,9 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
 
     NavHost(
         navController = navController,
-        startDestination = if (uiState.isAuthenticated) AppRoute.HOME else AppRoute.LOGIN
+        startDestination = if (uiState.isAuthenticated) AppRoute.MAIN else AppRoute.LOGIN
     ) {
+        // --- Màn hình đăng nhập ---
         composable(AppRoute.LOGIN) {
             LoginScreen(
                 onSignUpClick = {
@@ -58,7 +64,7 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
                 },
                 onLoginClick = { email, password ->
                     authViewModel.login(email, password) {
-                        navController.navigate(AppRoute.HOME) {
+                        navController.navigate(AppRoute.MAIN) {
                             popUpTo(AppRoute.LOGIN) { inclusive = true }
                             launchSingleTop = true
                         }
@@ -70,6 +76,7 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
             )
         }
 
+        // --- Màn hình đăng ký ---
         composable(AppRoute.SIGN_UP) {
             SignUpScreen(
                 onBackClick = {
@@ -78,7 +85,7 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
                 },
                 onSignUpClick = { fullName, email, password, confirmPassword ->
                     authViewModel.signUp(fullName, email, password, confirmPassword) {
-                        navController.navigate(AppRoute.HOME) {
+                        navController.navigate(AppRoute.MAIN) {
                             popUpTo(AppRoute.LOGIN) { inclusive = true }
                             launchSingleTop = true
                         }
@@ -89,6 +96,7 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
             )
         }
 
+        // --- Màn hình quên mật khẩu ---
         composable(AppRoute.FORGOT_PASSWORD) {
             ForgotPasswordScreen(
                 onBackClick = {
@@ -104,18 +112,33 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
             )
         }
 
-        composable(AppRoute.HOME) {
-            HomeScreen(
+        // --- Màn hình chính (Home / Phim / Hồ sơ) — có bottom navigation ---
+        composable(AppRoute.MAIN) {
+            MainScreen(
                 displayName = uiState.displayName,
                 userEmail = uiState.userEmail,
                 infoMessage = uiState.infoMessage,
+                onMovieClick = { movieId ->
+                    navController.navigate("${AppRoute.MOVIE_DETAIL}/${Uri.encode(movieId)}")
+                },
                 onSignOutClick = {
                     authViewModel.signOut()
                     navController.navigate(AppRoute.LOGIN) {
-                        popUpTo(AppRoute.HOME) { inclusive = true }
+                        popUpTo(AppRoute.MAIN) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
+            )
+        }
+
+        // --- Màn hình chi tiết phim ---
+        composable(
+            route = "${AppRoute.MOVIE_DETAIL}/{movieId}",
+            arguments = listOf(navArgument("movieId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            MovieDetailScreen(
+                movieId = backStackEntry.arguments?.getString("movieId").orEmpty(),
+                onBackClick = { navController.popBackStack() }
             )
         }
     }
