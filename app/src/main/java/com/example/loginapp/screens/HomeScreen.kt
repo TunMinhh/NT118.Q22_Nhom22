@@ -1,6 +1,5 @@
 package com.example.loginapp.screens
 
-import android.R.attr.shape
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,35 +11,28 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.verticalScroll
+import coil.compose.AsyncImage
 import com.example.loginapp.R
-import org.intellij.lang.annotations.JdkConstants
-import kotlin.math.absoluteValue
-import androidx.compose.ui.text.style.TextAlign
 import com.example.loginapp.auth.Movie
 import com.example.loginapp.auth.getMoviesFromFirestore
-import androidx.compose.runtime.*
-import coil.compose.AsyncImage
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.font.FontWeight
-import androidx.test.espresso.base.Default
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.ArrowForwardIos
-import androidx.compose.material3.CheckboxDefaults.colors
-import androidx.compose.ui.Alignment
+import kotlin.math.absoluteValue
 
 // Dữ liệu tĩnh cho các section tin tức / khuyến mãi phía dưới HomeScreen
 val items = listOf(
@@ -128,9 +120,6 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically // căn giữa theo màn hình
             ) {
 
-                // Spacer giả bên trái để cân giữa
-                Spacer(modifier = Modifier.size(32.dp))
-
                 // Logo CGV ở giữa
                 Box(
                     modifier = Modifier.weight(1f),
@@ -152,16 +141,6 @@ fun HomeScreen(
                         )
                     }
                 }
-
-                // ☰ Menu bên phải
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable { }
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -176,7 +155,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            MovieCarousel(movieList, onMovieClick)
+            MovieCarousel(movieList.filter { it.isShowing }, onMovieClick)
 
             Spacer(modifier = Modifier.height(16.dp))
 
