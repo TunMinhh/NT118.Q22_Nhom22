@@ -1,5 +1,6 @@
 package com.example.loginapp.auth
 
+import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.firestore.FirebaseFirestore
 
 // Model dữ liệu phim — mỗi field tương ứng một field trong Firestore
@@ -18,8 +19,6 @@ data class Movie(
     val rating: Double = 0.0,
     val releaseDate: String = "",
 )
-
-// Lấy toàn bộ danh sách phim từ Firestore rồi trả về qua callback
 fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
     val db = FirebaseFirestore.getInstance()
 
@@ -27,7 +26,6 @@ fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
         .get()
         .addOnSuccessListener { result ->
             val movieList = mutableListOf<Movie>()
-
 
             for (document in result) {
                 val data = document.data ?: continue
@@ -48,5 +46,31 @@ fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
         .addOnFailureListener { exception ->
             println("Error getting document: $exception")
             onResult(emptyList()) // Trả về rỗng để UI không crash
+        }
+}
+
+data class Review(
+    val comment: String = "",
+    val createdAt: String = "",
+    val id: String = "",
+    val movieId: String = "",
+    val rating: Int = 0,
+    val userId: String = "",
+    val userName: String = ""
+)
+
+fun getReviewsByMovieId(movieId: String, onResult: (List<Review>) -> Unit) {
+    val db = FirebaseFirestore.getInstance()
+
+    db.collection("reviews")
+        .whereEqualTo("movieId", movieId)
+        .get()
+        .addOnSuccessListener { result ->
+            val reviewList = result.toObjects(Review::class.java)
+            onResult(reviewList)
+        }
+        .addOnFailureListener { exception ->
+            println("Error getting Review: $exception")
+            onResult(emptyList())
         }
 }
