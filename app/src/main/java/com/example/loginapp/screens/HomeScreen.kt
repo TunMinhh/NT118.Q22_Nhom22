@@ -77,6 +77,15 @@ fun HomeScreen(
         }
     }
 
+//    LaunchedEffect(Unit) {
+//        getMoviesFromFirestore { it ->
+//            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
+//            movieList = it.shuffled().map { movie ->
+//                movie.copy(isShowing = listOf(true, false).random())
+//            }
+//        }
+//    }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         // Background blur theo phim đầu tiên (hoặc current)

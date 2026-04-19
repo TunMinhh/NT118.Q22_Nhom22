@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,14 +43,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.loginapp.auth.Movie
 import com.example.loginapp.auth.Review
-import com.example.loginapp.auth.getMoviesFromFirestore
 import com.example.loginapp.auth.getReviewsByMovieId
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextAlign
+import com.example.loginapp.auth.Actor
+import com.example.loginapp.auth.getActorsByNames
+import com.example.loginapp.auth.getMoviesFromFirestore
+import androidx.compose.foundation.lazy.items
 
 @Composable
 fun ReviewItem(review: Review) {
@@ -109,21 +114,54 @@ fun ReviewItem(review: Review) {
 }
 
 @Composable
+fun ActorItem(actor: Actor) {
+    Column(
+        modifier = Modifier
+            .width(90.dp) // Chiều rộng cố định để các item đều nhau
+            .padding(end = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Ảnh đại diện hình tròn
+        AsyncImage(
+            model = actor.imageURL,
+            contentDescription = actor.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(Color.DarkGray, CircleShape) // Màu nền lúc chờ load ảnh
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Tên diễn viên
+        Text(
+            text = actor.name,
+            color = Color.White,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2, // Nếu tên dài quá thì tự xuống dòng (tối đa 2 dòng)
+            lineHeight = 16.sp
+        )
+    }
+}
+
+@Composable
 fun MovieDetailScreen(
     movieId: String,
     onBackClick: () -> Unit
 ) {
-    println("Phim id là $movieId")
     val backgroundColor = Color(0xFF1B1E25)
     val textColor = Color.White
     val secondaryTextColor = Color(0xFFA0A0A0)
     val tabs = listOf("Thông tin", "Đánh giá", "Diễn viên")
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
-
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var reviewList by remember { mutableStateOf<List<Review>>(emptyList()) }
     var hasLoaded by remember { mutableStateOf(false) }
+    var actorList by remember { mutableStateOf<List<Actor>>(emptyList()) }
+
 
     LaunchedEffect(movieId) {
         getMoviesFromFirestore {
@@ -135,11 +173,6 @@ fun MovieDetailScreen(
             reviewList = result
         }
     }
-
-    if (reviewList.isEmpty()) println("Dữ liệu trống")
-    else println("Dữ liệu có")
-
-    //Xử lí các dữ liệu phim
     val movie = movieList.find { it.id == movieId || it.title == movieId }
 
     if (!hasLoaded) {
@@ -153,6 +186,7 @@ fun MovieDetailScreen(
         }
         return
     }
+
 
     if (movie == null) {
         Column(
@@ -182,7 +216,11 @@ fun MovieDetailScreen(
         }
         return
     }
-
+    else{
+        getActorsByNames(movie.cast){ result ->
+            actorList = result
+        }
+    }
 
 
 
@@ -341,20 +379,34 @@ fun MovieDetailScreen(
                         // Nếu có dữ liệu, dùng vòng lặp in ra từng cái
                         reviewList.forEach { review ->
                             ReviewItem(review = review)
-                            Spacer(modifier = Modifier.height(16.dp)) // Khoảng cách giữa các bình luận
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
             }
             2 -> {
-                // Nội dung Tab 2: Diễn viên (Tạm thời để chữ mồi)
-                Text(
-                    text = "Danh sách diễn viên đang được cập nhật...",
-                    color = secondaryTextColor,
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp) // Áp dụng padding 2 bên trái phải trước
-                        .padding(bottom = 32.dp)     // Sau đó áp dụng tiếp padding ở dưới
-                )
+
+                if (actorList.isEmpty()) {
+                    Text(
+                        text = "Danh sách diễn viên đang được cập nhật...",
+                        color = secondaryTextColor, // Đảm bảo bạn đã khai báo màu này
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 32.dp)
+                    )
+                } else {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, bottom = 32.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(actorList) { actor ->
+                            ActorItem(actor = actor)
+                        }
+                    }
+                }
+
             }
         }
     }

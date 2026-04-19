@@ -1,7 +1,9 @@
 package com.example.loginapp.auth
 
+import android.R
 import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.firestore.FirebaseFirestore
+import javax.inject.Named
 
 // Model dữ liệu phim — mỗi field tương ứng một field trong Firestore
 data class Movie(
@@ -30,8 +32,6 @@ fun getMoviesFromFirestore(onResult: (List<Movie>) -> Unit) {
             for (document in result) {
                 val data = document.data ?: continue
 
-                // isShowing trên Firestore có thể là Boolean hoặc String "true"/"false"
-                // phải xử lý thủ công, không thể tin hoàn toàn vào toObject()
                 val isShowingRaw = data["isShowing"]
                 val isShowing = when (isShowingRaw) {
                     is Boolean -> isShowingRaw
@@ -74,3 +74,28 @@ fun getReviewsByMovieId(movieId: String, onResult: (List<Review>) -> Unit) {
             onResult(emptyList())
         }
 }
+
+
+data class Actor(
+    val name: String = "",
+    val age: String = "",
+    val imageURL: String = "",
+    val nationality: String =""
+)
+
+fun getActorsByNames(list_actor: List<String>, onResult: (List<Actor>) -> Unit) {
+    val db = FirebaseFirestore.getInstance()
+
+    db.collection("actors")
+        .whereIn("name", list_actor)
+        .get()
+        .addOnSuccessListener { result ->
+            val allActor = result.toObjects(Actor::class.java)
+            onResult(allActor)
+        }
+        .addOnFailureListener{ exception ->
+            println("Error getting actor: $exception")
+            onResult(emptyList())
+        }
+}
+

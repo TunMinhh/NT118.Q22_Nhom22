@@ -62,6 +62,18 @@ fun MovieListScreen(onMovieClick: (String) -> Unit) {
         }
     }
 
+//    Cái này để test
+//    LaunchedEffect(Unit) {
+//        getMoviesFromFirestore { it ->
+//            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
+//            movieList = it.shuffled().map { movie ->
+//                movie.copy(isShowing = listOf(true, false).random())
+//            }
+//            hasLoaded = true
+//        }
+//    }
+
+
     if (!hasLoaded) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
