@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -117,11 +119,10 @@ fun ReviewItem(review: Review) {
 fun ActorItem(actor: Actor) {
     Column(
         modifier = Modifier
-            .width(90.dp) // Chiều rộng cố định để các item đều nhau
+            .width(90.dp)
             .padding(end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Ảnh đại diện hình tròn
         AsyncImage(
             model = actor.imageURL,
             contentDescription = actor.name,
@@ -129,7 +130,7 @@ fun ActorItem(actor: Actor) {
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(Color.DarkGray, CircleShape) // Màu nền lúc chờ load ảnh
+                .background(Color.DarkGray, CircleShape)
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -216,8 +217,8 @@ fun MovieDetailScreen(
         }
         return
     }
-    else{
-        getActorsByNames(movie.cast){ result ->
+    else {
+        getActorsByNames(movie.cast) { result ->
             actorList = result
         }
     }
@@ -366,18 +367,23 @@ fun MovieDetailScreen(
                 )
             }
             1 -> {
-                // Tab 1: ĐÁNH GIÁ (REVIEWS)
-                Column(modifier = Modifier.padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)) {
-                    if (reviewList.isEmpty()) {
-                        Text(
-                            text = "Chưa có đánh giá nào cho phim này. Hãy là người đầu tiên!",
-                            color = secondaryTextColor,
-                            fontSize = 14.sp
-                        )
-                    } else {
-                        // Nếu có dữ liệu, dùng vòng lặp in ra từng cái
-                        reviewList.forEach { review ->
+                if (reviewList.isEmpty()) {
+                    Text(
+                        text = "Chưa có đánh giá nào cho phim này. Hãy là người đầu tiên!",
+                        color = secondaryTextColor,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 32.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 32.dp)
+                            .heightIn(max = 400.dp)
+                    ) {
+                        items(reviewList) { review ->
                             ReviewItem(review = review)
                             Spacer(modifier = Modifier.height(16.dp))
                         }
@@ -385,7 +391,6 @@ fun MovieDetailScreen(
                 }
             }
             2 -> {
-
                 if (actorList.isEmpty()) {
                     Text(
                         text = "Danh sách diễn viên đang được cập nhật...",
