@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">LoginApp</string>
+    <string name="profile_default_name">Người dùng</string>
+    <string name="profile_default_email">Chưa có email</string>
+    <string name="profile_title">Hồ sơ cá nhân</string>
+    <string name="profile_avatar_desc">Ảnh đại diện người dùng</string>
+    <string name="profile_info_label_name">Tên</string>
+    <string name="profile_info_label_email">Email</string>
+    <string name="profile_sign_out">Đăng xuất</string>
 </resources>

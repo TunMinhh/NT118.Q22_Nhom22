@@ -2,18 +2,23 @@ package com.example.loginapp.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -25,10 +30,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,7 +46,12 @@ import com.example.loginapp.R
 import com.example.loginapp.ui.theme.LoginAppTheme
 
 @Composable
-fun SignUpScreen(onBackClick: () -> Unit) {
+fun SignUpScreen(
+    onBackClick: () -> Unit,
+    onSignUpClick: (String, String, String, String) -> Unit,
+    isLoading: Boolean,
+    errorMessage: String?
+) {
     // Lưu dữ liệu người dùng nhập trên màn hình đăng ký
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -68,7 +81,7 @@ fun SignUpScreen(onBackClick: () -> Unit) {
             modifier = Modifier.padding(20.dp)
         ) {
             // Nút quay lại màn hình đăng nhập
-            TextButton(onClick = onBackClick) {
+            TextButton(onClick = onBackClick, enabled = !isLoading) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Quay lại"
@@ -92,6 +105,8 @@ fun SignUpScreen(onBackClick: () -> Unit) {
                 onValueChange = { fullName = it },
                 label = { Text("Họ và tên") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent
@@ -104,8 +119,13 @@ fun SignUpScreen(onBackClick: () -> Unit) {
             TextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email hoặc số điện thoại") },
+                label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent
@@ -120,6 +140,11 @@ fun SignUpScreen(onBackClick: () -> Unit) {
                 onValueChange = { password = it },
                 label = { Text("Mật khẩu") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                ),
                 visualTransformation = if (isPasswordVisible) {
                     VisualTransformation.None
                 } else {
@@ -155,6 +180,11 @@ fun SignUpScreen(onBackClick: () -> Unit) {
                 onValueChange = { confirmPassword = it },
                 label = { Text("Nhập lại mật khẩu") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
                 visualTransformation = if (isConfirmPasswordVisible) {
                     VisualTransformation.None
                 } else {
@@ -182,13 +212,22 @@ fun SignUpScreen(onBackClick: () -> Unit) {
                 )
             )
 
+            if (!errorMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = errorMessage,
+                    color = Color(0xFFB00020)
+                )
+            }
+
             Spacer(modifier = Modifier.height(25.dp))
 
             // Nút hoàn tất đăng ký
             Button(
                 onClick = {
-                    // Xử lý khi bấm đăng ký
+                    onSignUpClick(fullName, email, password, confirmPassword)
                 },
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(55.dp),
@@ -196,7 +235,25 @@ fun SignUpScreen(onBackClick: () -> Unit) {
                     containerColor = Color(0xFFB33A3A)
                 )
             ) {
-                Text("TẠO TÀI KHOẢN", fontSize = 18.sp, color = Color.White)
+                if (isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier
+                                .width(18.dp)
+                                .height(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("ĐANG XỬ LÝ...", fontSize = 16.sp, color = Color.White)
+                    }
+                } else {
+                    Text("TẠO TÀI KHOẢN", fontSize = 18.sp, color = Color.White)
+                }
             }
         }
     }
@@ -206,6 +263,11 @@ fun SignUpScreen(onBackClick: () -> Unit) {
 @Composable
 private fun SignUpScreenPreview() {
     LoginAppTheme {
-        SignUpScreen(onBackClick = {})
+        SignUpScreen(
+            onBackClick = {},
+            onSignUpClick = { _, _, _, _ -> },
+            isLoading = false,
+            errorMessage = null
+        )
     }
 }
