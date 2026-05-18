@@ -57,6 +57,10 @@ import com.example.loginapp.auth.Actor
 import com.example.loginapp.auth.getActorsByNames
 import com.example.loginapp.auth.getMoviesFromFirestore
 import androidx.compose.foundation.lazy.items
+import com.example.loginapp.auth.User_Review
+import com.example.loginapp.auth.getUserReviewsByMovieId
+import com.example.loginapp.auth.postReview
+
 
 @Composable
 fun ReviewItem(review: Review) {
@@ -148,6 +152,99 @@ fun ActorItem(actor: Actor) {
 }
 
 @Composable
+fun AddReviewSection(
+    movieId: String,
+    onReviewSubmitted: () -> Unit // Để load lại danh sách sau khi gửi
+) {
+    var rating by remember { mutableIntStateOf(5) } // Mặc định 5 sao
+    var comment by remember { mutableStateOf("") }
+    var isSending by remember { mutableStateOf(false) }
+
+    val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val secondaryTextColor = Color(0xFFA0A0A0)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF2A2E38), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        Text("Đánh giá của bạn", color = Color.White, fontWeight = FontWeight.Bold)
+
+        // 1. Hàng chọn sao
+        Row(modifier = Modifier.padding(vertical = 8.dp)) {
+            repeat(5) { index ->
+                val starIndex = index + 1
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = if (starIndex <= rating) Color(0xFFFFC107) else Color.Gray,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable { rating = starIndex } // Người dùng bấm vào sao để chọn
+                )
+            }
+        }
+
+        // 2. Ô nhập bình luận
+        androidx.compose.material3.TextField(
+            value = comment,
+            onValueChange = { comment = it },
+            placeholder = { Text("Viết cảm nghĩ của bạn về phim...", color = secondaryTextColor, fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFF1B1E25),
+                unfocusedContainerColor = Color(0xFF1B1E25),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 3. Nút Gửi
+        Button(
+            onClick = {
+                if (currentUser != null && comment.isNotBlank()) {
+                    isSending = true
+                    postReview(
+                        movieId = movieId,
+                        userId = currentUser.uid,
+                        userName = currentUser.displayName ?: "Người dùng ẩn danh",
+                        rating = rating,
+                        comment = comment,
+                        onSuccess = {
+                            isSending = false
+                            comment = ""
+                            rating = 5
+                            onReviewSubmitted()
+                        },
+                        onFailure = { isSending = false }
+                    )
+                }
+            },
+            modifier = Modifier.align(Alignment.End),
+            enabled = !isSending && comment.isNotBlank(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White)
+        ) {
+            if (isSending) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp), // Dùng Modifier để chỉnh kích thước
+                    color = Color.Black,             // Màu sắc
+                    strokeWidth = 2.dp               // (Tùy chọn) Độ dày của vòng tròn
+                )
+            } else {
+                Text("Gửi", color = Color.Black)
+            }
+        }
+    }
+}
+
+
+@Composable
 fun MovieDetailScreen(
     movieId: String,
     onBackClick: () -> Unit
@@ -160,6 +257,7 @@ fun MovieDetailScreen(
 
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var reviewList by remember { mutableStateOf<List<Review>>(emptyList()) }
+    var userreviewList by remember { mutableStateOf<List<User_Review>>(emptyList()) }
     var hasLoaded by remember { mutableStateOf(false) }
     var actorList by remember { mutableStateOf<List<Actor>>(emptyList()) }
 
@@ -367,7 +465,23 @@ fun MovieDetailScreen(
                 )
             }
             1 -> {
-                if (reviewList.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    AddReviewSection(
+                        movieId = movieId,
+                        onReviewSubmitted = {
+                            getReviewsByMovieId(movieId) { result ->
+                                reviewList = result
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                if (reviewList.isEmpty() && userreviewList.isEmpty()) {
                     Text(
                         text = "Chưa có đánh giá nào cho phim này. Hãy là người đầu tiên!",
                         color = secondaryTextColor,
