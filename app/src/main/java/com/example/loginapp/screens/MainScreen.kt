@@ -3,6 +3,7 @@ package com.example.loginapp.screens
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -25,10 +26,11 @@ import androidx.navigation.compose.rememberNavController
 sealed class BottomTab(val route: String, val label: String, val icon: ImageVector) {
     object Home    : BottomTab("tab_home",    "Trang chủ", Icons.Default.Home)
     object Movies  : BottomTab("tab_movies",  "Phim",      Icons.Default.VideoLibrary)
+    object Cinema  : BottomTab("tab_cinema",  "Rạp",       Icons.Default.LocationOn)
     object Profile : BottomTab("tab_profile", "Hồ sơ",     Icons.Default.Person)
 }
 
-private val bottomTabs = listOf(BottomTab.Home, BottomTab.Movies, BottomTab.Profile)
+private val bottomTabs = listOf(BottomTab.Home, BottomTab.Movies, BottomTab.Cinema, BottomTab.Profile)
 
 // Màn hình chính chứa BottomNavigationBar — được gắn sau khi đăng nhập thành công
 @Composable
@@ -84,6 +86,10 @@ fun MainScreen(
 
             composable(BottomTab.Movies.route) {
                 MovieListScreen(onMovieClick = onMovieClick)
+            }
+
+            composable(BottomTab.Cinema.route) {
+                CinemaScreen()
             }
 
             composable(BottomTab.Profile.route) {
