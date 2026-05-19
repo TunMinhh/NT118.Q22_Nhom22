@@ -64,6 +64,9 @@ import com.example.loginapp.auth.getShowtimeById
 import com.example.loginapp.auth.getShowtimesByMovieId
 import com.example.loginapp.ui.theme.LoginAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 
 private val BookingBg = Color(0xFF111318)
@@ -455,11 +458,27 @@ private fun CinemaShowtimeCard(
 
             Spacer(modifier = Modifier.height(14.dp))
             Text("Lịch chiếu", color = BookingMuted, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(showtimes, key = { it.id }) { showtime ->
-                    ShowtimeChip(showtime = showtime, onClick = { onShowtimeClick(showtime.id) })
+            val showtimesByDate = showtimes
+                .sortedBy { it.startTime }
+                .groupBy { showtimeDateKey(it.startTime) }
+
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                showtimesByDate.forEach { (date, dateShowtimes) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = formatShowtimeDate(date),
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(dateShowtimes, key = { it.id }) { showtime ->
+                                ShowtimeChip(showtime = showtime, onClick = { onShowtimeClick(showtime.id) })
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -727,6 +746,23 @@ private fun formatHour(value: String): String {
     return value.replace("T", " ").replace("Z", "").drop(11).take(5).ifBlank { value }
 }
 
+private fun showtimeDateKey(value: String): String {
+    return value.take(10)
+}
+
+private fun formatShowtimeDate(value: String): String {
+    return try {
+        val date = LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)
+        val vi = Locale("vi", "VN")
+        val dayOfWeek = date.dayOfWeek.getDisplayName(TextStyle.FULL, vi)
+        val day = String.format(Locale.US, "%02d", date.dayOfMonth)
+        val month = String.format(Locale.US, "%02d", date.monthValue)
+        "$dayOfWeek, $day/$month"
+    } catch (_: Exception) {
+        value
+    }
+}
+
 private fun formatDateTime(value: String): String {
     return value.replace("T", " ").replace("Z", "").take(16)
 }
@@ -761,6 +797,16 @@ private val previewShowtime = Showtime(
     startTime = "2026-03-21T19:00:00Z"
 )
 
+private val previewShowtimeNextDay = Showtime(
+    bookedSeats = listOf("B1", "B2", "D4"),
+    cinemaId = "c_01",
+    id = "st_102",
+    movieId = "m_001",
+    price = 150000,
+    roomId = "r_01",
+    startTime = "2026-03-22T13:15:00Z"
+)
+
 private val previewMovie = Movie(
     id = "m_001",
     title = "Nasuverse: The Crimson Moon",
@@ -775,7 +821,7 @@ private fun BookingCinemaScreenPreview() {
     LoginAppTheme(dynamicColor = false) {
         BookingCinemaContent(
             cinemas = listOf(previewCinema),
-            showtimes = listOf(previewShowtime),
+            showtimes = listOf(previewShowtime, previewShowtimeNextDay),
             isLoading = false,
             onBackClick = {},
             onShowtimeClick = {}
