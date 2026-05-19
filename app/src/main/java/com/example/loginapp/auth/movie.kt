@@ -1,9 +1,6 @@
 package com.example.loginapp.auth
 
-import android.R
-import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.firestore.FirebaseFirestore
-import javax.inject.Named
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

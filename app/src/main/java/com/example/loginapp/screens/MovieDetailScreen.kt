@@ -247,7 +247,8 @@ fun AddReviewSection(
 @Composable
 fun MovieDetailScreen(
     movieId: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onBookClick: () -> Unit
 ) {
     val backgroundColor = Color(0xFF1B1E25)
     val textColor = Color.White
@@ -407,9 +408,20 @@ fun MovieDetailScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        Button(
+            onClick = onBookClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .height(48.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFE50914)
+            )
+        ) {
+            Text("Đặt vé", color = Color.White, fontWeight = FontWeight.Bold)
+        }
 
-
-
+        Spacer(modifier = Modifier.height(28.dp))
 
         // 4. Thanh Tabs có thể click
         Row(
