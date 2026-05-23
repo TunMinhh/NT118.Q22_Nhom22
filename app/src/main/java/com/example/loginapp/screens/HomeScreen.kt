@@ -28,6 +28,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import coil.compose.AsyncImage
 import com.example.loginapp.R
 import com.example.loginapp.auth.Movie
@@ -61,34 +63,34 @@ fun HomeScreen(
     userEmail: String?,
     infoMessage: String?,
     onSignOutClick: () -> Unit,
-    onMovieClick: (String) -> Unit
+    onMovieClick: (String) -> Unit,
+    onSearchStateChange: (Boolean) -> Unit = {}
 ) {
 
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
-
+    var searchQuery by remember { mutableStateOf("") }
 
     // Gọi Firestore khi mở màn hình
-    LaunchedEffect(Unit) {
-        getMoviesFromFirestore {
-            movieList = it
-            it.forEach { movie ->
-                println("DEBUG: ${movie.title} - ${movie.posterUrl}")
-            }
-        }
-    }
-
 //    LaunchedEffect(Unit) {
-//        getMoviesFromFirestore { it ->
-//            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
-//            movieList = it.shuffled().map { movie ->
-//                movie.copy(isShowing = listOf(true, false).random())
+//        getMoviesFromFirestore {
+//            movieList = it
+//            it.forEach { movie ->
+//                println("DEBUG: ${movie.title} - ${movie.posterUrl}")
 //            }
 //        }
 //    }
 
+    LaunchedEffect(Unit) {
+        getMoviesFromFirestore { it ->
+            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
+            movieList = it.shuffled().map { movie ->
+                movie.copy(isShowing = listOf(true, false).random())
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // Background blur theo phim đầu tiên (hoặc current)
         if (movieList.isNotEmpty()) {
             AsyncImage(
                 model = movieList[0].posterUrl,
@@ -114,14 +116,12 @@ fun HomeScreen(
                 )
         )
 
-        // Nội dung UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
 
                 .verticalScroll(rememberScrollState())
         ) {
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -129,7 +129,6 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically // căn giữa theo màn hình
             ) {
 
-                // Logo CGV ở giữa
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
@@ -152,66 +151,164 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { newText ->
+                    searchQuery = newText
+                    onSearchStateChange(newText.isNotEmpty())
+                },
+                placeholder = { Text("Tìm phim đang chiếu...", color = Color.Gray) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = Color.Gray
+                    )
+                },
 
-            Text(
-                text = "Đang Chiếu",
-                color = Color.White,
-                fontSize = 20.sp,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        androidx.compose.material3.IconButton(onClick = {
+                            searchQuery = "" // Xóa sạch chữ
+                            onSearchStateChange(false) // Hiện lại thanh điều hướng ở dưới
+                        }) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Clear,
+                                contentDescription = "Xóa",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                },
 
-            MovieCarousel(movieList.filter { it.isShowing }, onMovieClick)
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Box(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(25.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
-                    .background(
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true,
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF2A2E38),
+                    unfocusedContainerColor = Color(0xFF2A2E38),
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
 
-                        Color.White,
-                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-                    )
-                    .padding(16.dp)
-            ) {
-                Column {
+            Spacer(modifier = Modifier.height(16.dp))
 
-                    supportSelection()
+            if (searchQuery.isEmpty()) {
+                Text(
+                    text = "Đang Chiếu",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                    NewsSection(
-                        title = "Tin nóng",
-                        items = listOf(
-                            Pair(R.drawable.banner_uu_dai, "Cơ hội trúng quà khi mua online"),
-                            Pair(R.drawable.thanh_vien_cgv, "x2 khi đăng ký thành viên"),
-                            Pair(R.drawable.voucher_momo_cgv, "voucher của momo")
+                MovieCarousel(movieList.filter { it.isShowing }, onMovieClick)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .background(
+                            Color.White,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
                         )
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    NewsSection(
-                        title = "CGV eGift",
-                        items = giftList
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
+                        .padding(16.dp)
+                ) {
                     Column {
+                        supportSelection()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        NewsSection(
+                            title = "Tin nóng",
+                            items = listOf(
+                                Pair(R.drawable.banner_uu_dai, "Cơ hội trúng quà khi mua online"),
+                                Pair(R.drawable.thanh_vien_cgv, "x2 khi đăng ký thành viên"),
+                                Pair(R.drawable.voucher_momo_cgv, "voucher của momo")
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        NewsSection(title = "CGV eGift", items = giftList)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column {
+                            SectionHeader("Videos")
+                            androidx.compose.foundation.lazy.LazyRow {
+                                items(videoList) { item ->
+                                    VideoItem(image = item.first, title = item.second)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                val searchResults = movieList.filter { movie ->
+                    movie.isShowing && movie.title.contains(searchQuery, ignoreCase = true)
+                }
 
-                        SectionHeader("Videos")
+                Text(
+                    text = "Kết quả tìm kiếm cho: \"$searchQuery\"",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
 
-                        LazyRow {
-                            items(videoList) { item ->
-                                VideoItem(
-                                    image = item.first,
-                                    title = item.second
+                if (searchResults.isEmpty()) {
+                    Text(
+                        text = "Không tìm thấy phim đang chiếu nào.",
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        searchResults.forEach { movie ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                                    .background(Color(0xFF2A2E38), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        // Bấm vào sẽ gọi mở màn hình chi tiết phim
+                                        if (movie.id.isNotEmpty()) {
+                                            onMovieClick(movie.id)
+                                        } else {
+                                            onMovieClick(movie.title)
+                                        }
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = movie.posterUrl,
+                                    contentDescription = movie.title,
+                                    modifier = Modifier
+                                        .size(50.dp, 75.dp)
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Text(
+                                    text = movie.title,
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
@@ -223,7 +320,6 @@ fun HomeScreen(
 }
 
 
-// Carousel phim từ Firestore — vuốt ngang, click để vào chi tiết phim
 @Composable
 fun MovieCarousel(movieList: List<Movie>, onMovieClick: (String) -> Unit) {
 
