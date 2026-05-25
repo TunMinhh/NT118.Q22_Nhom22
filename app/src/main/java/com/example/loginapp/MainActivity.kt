@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.loginapp.auth.AuthViewModel
 import com.example.loginapp.screens.BookingCinemaScreen
+import com.example.loginapp.screens.BookingHistoryScreen
 import com.example.loginapp.screens.BookingSeatScreen
 import com.example.loginapp.screens.BookingTicketScreen
 import com.example.loginapp.screens.ForgotPasswordScreen
@@ -30,9 +31,10 @@ private object AppRoute {
     const val FORGOT_PASSWORD = "forgot_password"
     const val MAIN          = "main"                // Màn hình chính có bottom nav
     const val MOVIE_DETAIL  = "movie_detail"        // Màn hình chi tiết phim
-    const val BOOKING_CINEMA = "booking_cinema"
-    const val BOOKING_SEAT = "booking_seat"
-    const val BOOKING_TICKET = "booking_ticket"
+    const val BOOKING_CINEMA   = "booking_cinema"
+    const val BOOKING_SEAT     = "booking_seat"
+    const val BOOKING_TICKET   = "booking_ticket"
+    const val BOOKING_HISTORY  = "booking_history"
 }
 
 class MainActivity : ComponentActivity() {
@@ -121,9 +123,7 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
         // --- Màn hình chính (Home / Phim / Hồ sơ) — có bottom navigation ---
         composable(AppRoute.MAIN) {
             MainScreen(
-                displayName = uiState.displayName,
-                userEmail = uiState.userEmail,
-                infoMessage = uiState.infoMessage,
+                authViewModel = authViewModel,
                 onMovieClick = { movieId ->
                     navController.navigate("${AppRoute.MOVIE_DETAIL}/${Uri.encode(movieId)}")
                 },
@@ -133,7 +133,17 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
                         popUpTo(AppRoute.MAIN) { inclusive = true }
                         launchSingleTop = true
                     }
+                },
+                onHistoryClick = {
+                    navController.navigate(AppRoute.BOOKING_HISTORY)
                 }
+            )
+        }
+
+        // --- Màn hình lịch sử đặt vé ---
+        composable(AppRoute.BOOKING_HISTORY) {
+            BookingHistoryScreen(
+                onBackClick = { navController.popBackStack() }
             )
         }
 

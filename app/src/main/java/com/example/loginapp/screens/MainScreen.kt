@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.loginapp.auth.AuthViewModel
 
 // Các tab trong bottom navigation
 sealed class BottomTab(val route: String, val label: String, val icon: ImageVector) {
@@ -35,19 +36,18 @@ private val bottomTabs = listOf(BottomTab.Home, BottomTab.Movies, BottomTab.Cine
 // Màn hình chính chứa BottomNavigationBar — được gắn sau khi đăng nhập thành công
 @Composable
 fun MainScreen(
-    displayName: String?,
-    userEmail: String?,
-    infoMessage: String?,
+    authViewModel: AuthViewModel,
     onMovieClick: (String) -> Unit,
-    onSignOutClick: () -> Unit
+    onSignOutClick: () -> Unit,
+    onHistoryClick: () -> Unit
 ) {
+    val uiState = authViewModel.uiState
     val innerNavController = rememberNavController()
 
     Scaffold(
         bottomBar = {
             val navBackStackEntry by innerNavController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
-
             NavigationBar {
                 bottomTabs.forEach { tab ->
                     NavigationBarItem(
@@ -76,9 +76,9 @@ fun MainScreen(
         ) {
             composable(BottomTab.Home.route) {
                 HomeScreen(
-                    displayName = displayName,
-                    userEmail = userEmail,
-                    infoMessage = infoMessage,
+                    displayName = uiState.displayName,
+                    userEmail = uiState.userEmail,
+                    infoMessage = uiState.infoMessage,
                     onMovieClick = onMovieClick,
                     onSignOutClick = onSignOutClick
                 )
@@ -94,9 +94,12 @@ fun MainScreen(
 
             composable(BottomTab.Profile.route) {
                 ProfileScreen(
-                    displayName = displayName,
-                    userEmail = userEmail,
-                    onSignOutClick = onSignOutClick
+                    uiState = uiState,
+                    onUpdateProfile = { name, phone, address, onComplete ->
+                        authViewModel.updateUserProfile(name, phone, address, onComplete)
+                    },
+                    onSignOutClick = onSignOutClick,
+                    onHistoryClick = onHistoryClick
                 )
             }
         }

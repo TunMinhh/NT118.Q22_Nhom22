@@ -9,12 +9,15 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 
 data class AuthUiState(
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     val userEmail: String? = null,
     val displayName: String? = null,
+    val phoneNumber: String? = null,
+    val address: String? = null,
     val errorMessage: String? = null,
     val infoMessage: String? = null
 )
@@ -31,6 +34,12 @@ class AuthViewModel : ViewModel() {
         )
     )
         private set
+
+    init {
+        if (auth.currentUser != null) {
+            fetchUserProfile()
+        }
+    }
 
     fun clearFeedback() {
         uiState = uiState.copy(errorMessage = null, infoMessage = null)
@@ -74,6 +83,7 @@ class AuthViewModel : ViewModel() {
                         errorMessage = null,
                         infoMessage = "Đăng nhập thành công."
                     )
+                    fetchUserProfile()
                     onSuccess()
                 } else {
                     uiState = uiState.copy(
@@ -177,11 +187,13 @@ class AuthViewModel : ViewModel() {
                                 else -> "Tạo tài khoản thành công."
                             }
 
-                            uiState = uiState.copy(
+                             uiState = uiState.copy(
                                 isLoading = false,
                                 isAuthenticated = true,
                                 userEmail = currentUser.email ?: normalizedEmail,
                                 displayName = normalizedName,
+                                phoneNumber = "",
+                                address = "",
                                 errorMessage = null,
                                 infoMessage = infoMessage
                             )
@@ -243,6 +255,7 @@ class AuthViewModel : ViewModel() {
             "email" to email,
             "displayName" to displayName,
             "phoneNumber" to "",
+            "address" to "",
             "favoriteGenres" to emptyList<String>(),
             "createdAt" to FieldValue.serverTimestamp()
         )
@@ -255,6 +268,95 @@ class AuthViewModel : ViewModel() {
             }
             .addOnFailureListener { exception ->
                 onComplete(exception.localizedMessage ?: "Không thể lưu hồ sơ người dùng.")
+            }
+    }
+
+    fun fetchUserProfile() {
+        val currentUser = auth.currentUser ?: return
+        firestore.collection("users")
+            .document(currentUser.uid)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val dbDisplayName = document.getString("displayName")
+                    val dbPhoneNumber = document.getString("phoneNumber")
+                    val dbAddress = document.getString("address")
+                    uiState = uiState.copy(
+                        displayName = dbDisplayName ?: currentUser.displayName ?: uiState.displayName,
+                        phoneNumber = dbPhoneNumber ?: "",
+                        address = dbAddress ?: ""
+                    )
+                }
+            }
+            .addOnFailureListener { exception ->
+                uiState = uiState.copy(
+                    errorMessage = "Không thể tải thông tin hồ sơ: ${exception.localizedMessage}"
+                )
+            }
+    }
+
+    fun updateUserProfile(
+        displayName: String,
+        phoneNumber: String,
+        address: String,
+        onComplete: (String?) -> Unit
+    ) {
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            onComplete("Người dùng chưa đăng nhập.")
+            return
+        }
+
+        uiState = uiState.copy(isLoading = true, errorMessage = null, infoMessage = null)
+
+        val profileUpdates = UserProfileChangeRequest.Builder()
+            .setDisplayName(displayName)
+            .build()
+
+        currentUser.updateProfile(profileUpdates)
+            .addOnCompleteListener { profileTask ->
+                val data = hashMapOf<String, Any>(
+                    "displayName" to displayName,
+                    "phoneNumber" to phoneNumber,
+                    "address" to address
+                )
+
+                firestore.collection("users")
+                    .document(currentUser.uid)
+                    .update(data)
+                    .addOnSuccessListener {
+                        uiState = uiState.copy(
+                            isLoading = false,
+                            displayName = displayName,
+                            phoneNumber = phoneNumber,
+                            address = address,
+                            infoMessage = "Cập nhật hồ sơ thành công."
+                        )
+                        onComplete(null)
+                    }
+                    .addOnFailureListener { exception ->
+                        // Fallback to set with merge if the document doesn't exist
+                        firestore.collection("users")
+                            .document(currentUser.uid)
+                            .set(data, SetOptions.merge())
+                            .addOnSuccessListener {
+                                uiState = uiState.copy(
+                                    isLoading = false,
+                                    displayName = displayName,
+                                    phoneNumber = phoneNumber,
+                                    address = address,
+                                    infoMessage = "Cập nhật hồ sơ thành công."
+                                )
+                                onComplete(null)
+                            }
+                            .addOnFailureListener { err ->
+                                uiState = uiState.copy(
+                                    isLoading = false,
+                                    errorMessage = err.localizedMessage ?: "Không thể cập nhật thông tin trên Firestore."
+                                )
+                                onComplete(err.localizedMessage)
+                            }
+                    }
             }
     }
 }
