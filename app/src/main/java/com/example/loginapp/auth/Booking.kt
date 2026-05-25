@@ -93,6 +93,7 @@ fun getRoomById(roomId: String, onResult: (Room?) -> Unit) {
 fun createTicket(
     cinemaName: String,
     movieTitle: String,
+    paymentMethod: String,
     seats: List<String>,
     showtimeId: String,
     totalPrice: Long,
@@ -112,7 +113,7 @@ fun createTicket(
         "cinemaName" to cinemaName,
         "id" to ticketId,
         "movieTitle" to movieTitle,
-        "paymentMethod" to "ZaloPay Simulation",
+        "paymentMethod" to paymentMethod,
         "paymentStatus" to "success",
         "seats" to seats,
         "showtimeId" to showtimeId,

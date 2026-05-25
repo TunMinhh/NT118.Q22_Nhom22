@@ -71,23 +71,23 @@ fun HomeScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     // Gọi Firestore khi mở màn hình
-//    LaunchedEffect(Unit) {
-//        getMoviesFromFirestore {
-//            movieList = it
-//            it.forEach { movie ->
-//                println("DEBUG: ${movie.title} - ${movie.posterUrl}")
-//            }
-//        }
-//    }
-
     LaunchedEffect(Unit) {
-        getMoviesFromFirestore { it ->
-            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
-            movieList = it.shuffled().map { movie ->
-                movie.copy(isShowing = listOf(true, false).random())
+        getMoviesFromFirestore {
+        movieList = it
+            it.forEach { movie ->
+                println("DEBUG: ${movie.title} - ${movie.posterUrl}")
             }
         }
     }
+
+//    LaunchedEffect(Unit) {
+//        getMoviesFromFirestore { it ->
+//            // Lấy danh sách 'it' trả về, trộn ngẫu nhiên và random trạng thái isShowing
+//            movieList = it.shuffled().map { movie ->
+//                movie.copy(isShowing = listOf(true, false).random())
+//            }
+//        }
+//    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
