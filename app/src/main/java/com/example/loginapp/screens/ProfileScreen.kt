@@ -16,15 +16,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -43,21 +57,28 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.loginapp.R
+import com.example.loginapp.auth.AuthUiState
 import java.io.File
+
 
 
 // Màn hình hồ sơ người dùng — hiển thị thông tin tài khoản và nút đăng xuất
 @Composable
 fun ProfileScreen(
-    displayName: String?,
-    userEmail: String?,
-    onSignOutClick: () -> Unit
+    uiState: AuthUiState,
+    onUpdateProfile: (name: String, phone: String, address: String, onComplete: (String?) -> Unit) -> Unit,
+    onSignOutClick: () -> Unit,
+    onHistoryClick: () -> Unit
 ) {
     // Dùng fallback nếu tên/email null hoặc rỗng (ví dụ đăng nhập ẩn danh)
-    val safeDisplayName = displayName?.takeIf { it.isNotBlank() }
+    val safeDisplayName = uiState.displayName?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.profile_default_name)
-    val safeEmail = userEmail?.takeIf { it.isNotBlank() }
+    val safeEmail = uiState.userEmail?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.profile_default_email)
+    val safePhone = uiState.phoneNumber?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.profile_phone_placeholder)
+    val safeAddress = uiState.address?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.profile_address_placeholder)
 
     val context = LocalContext.current
     // File lưu trữ ảnh cục bộ trong bộ nhớ trong của app
@@ -88,11 +109,18 @@ fun ProfileScreen(
         }
     }
 
+    // Trạng thái chỉnh sửa thông tin hồ sơ
+    var isEditing by remember { mutableStateOf(false) }
+    var editName by remember(uiState.displayName) { mutableStateOf(uiState.displayName.orEmpty()) }
+    var editPhone by remember(uiState.phoneNumber) { mutableStateOf(uiState.phoneNumber.orEmpty()) }
+    var editAddress by remember(uiState.address) { mutableStateOf(uiState.address.orEmpty()) }
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
@@ -104,6 +132,8 @@ fun ProfileScreen(
                     .fillMaxWidth()
                     .padding(top = 12.dp, bottom = 20.dp)
             )
+
+
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -179,50 +209,225 @@ fun ProfileScreen(
                         modifier = Modifier.padding(top = 4.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    ProfileInfoRow(
-                        label = stringResource(R.string.profile_info_label_name),
-                        value = safeDisplayName
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ProfileInfoRow(
-                        label = stringResource(R.string.profile_info_label_email),
-                        value = safeEmail
-                    )
+                    if (!isEditing) {
+                        ProfileInfoRow(
+                            icon = Icons.Default.Person,
+                            label = stringResource(R.string.profile_info_label_name),
+                            value = safeDisplayName
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ProfileInfoRow(
+                            icon = Icons.Default.Email,
+                            label = stringResource(R.string.profile_info_label_email),
+                            value = safeEmail
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ProfileInfoRow(
+                            icon = Icons.Default.Phone,
+                            label = stringResource(R.string.profile_info_label_phone),
+                            value = safePhone
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ProfileInfoRow(
+                            icon = Icons.Default.LocationOn,
+                            label = stringResource(R.string.profile_info_label_address),
+                            value = safeAddress
+                        )
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        OutlinedButton(
+                            onClick = { isEditing = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.profile_edit_button))
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text(stringResource(R.string.profile_info_label_name)) },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !uiState.isLoading
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = safeEmail,
+                            onValueChange = {},
+                            label = { Text(stringResource(R.string.profile_info_label_email)) },
+                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = false
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = editPhone,
+                            onValueChange = { editPhone = it },
+                            label = { Text(stringResource(R.string.profile_info_label_phone)) },
+                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !uiState.isLoading
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = editAddress,
+                            onValueChange = { editAddress = it },
+                            label = { Text(stringResource(R.string.profile_info_label_address)) },
+                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !uiState.isLoading
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    editName = uiState.displayName.orEmpty()
+                                    editPhone = uiState.phoneNumber.orEmpty()
+                                    editAddress = uiState.address.orEmpty()
+                                    isEditing = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.isLoading
+                            ) {
+                                Text(stringResource(R.string.profile_cancel_button))
+                            }
+
+                            Button(
+                                onClick = {
+                                    onUpdateProfile(editName, editPhone, editAddress) { error ->
+                                        if (error == null) {
+                                            isEditing = false
+                                            android.widget.Toast.makeText(context, "Cập nhật hồ sơ thành công!", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Cập nhật thất bại: $error", android.widget.Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.isLoading && editName.isNotBlank()
+                            ) {
+                                if (uiState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(stringResource(R.string.profile_save_button))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // Nút Lịch sử đặt vé
+            Button(
+                onClick = onHistoryClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ConfirmationNumber,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Lịch sử đặt vé",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Nút Đăng Xuất — dùng Button với màu nền đỏ để chữ luôn hiển thị rõ
             Button(
                 onClick = onSignOutClick,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = Color.White
+                )
             ) {
-                Text(stringResource(R.string.profile_sign_out))
+                Text(
+                    text = stringResource(R.string.profile_sign_out),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
-// Hàng hiển thị một cặp nhãn – giá trị (dùng trong card thông tin)
+// Hàng hiển thị một cặp nhãn – giá trị kèm icon (dùng trong card thông tin)
 @Composable
-private fun ProfileInfoRow(label: String, value: String) {
+private fun ProfileInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .size(20.dp)
         )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
-        )
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 

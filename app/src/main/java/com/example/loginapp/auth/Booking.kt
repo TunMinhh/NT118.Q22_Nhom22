@@ -131,3 +131,22 @@ fun createTicket(
         }
         .addOnFailureListener { onFailure(it) }
 }
+
+// Lấy danh sách vé đã đặt của một người dùng, sắp xếp theo thời gian mới nhất trước
+fun getTicketsByUserId(userId: String, onResult: (List<Ticket>) -> Unit) {
+    val db = FirebaseFirestore.getInstance()
+    db.collection("tickets")
+        .whereEqualTo("userId", userId)
+        .get()
+        .addOnSuccessListener { result ->
+            val tickets = result.map { document ->
+                val ticket = document.toObject(Ticket::class.java)
+                ticket.copy(id = ticket.id.ifBlank { document.id })
+            }.sortedByDescending { it.bookingTime }
+            onResult(tickets)
+        }
+        .addOnFailureListener { exception ->
+            println("Error getting tickets: $exception")
+            onResult(emptyList())
+        }
+}

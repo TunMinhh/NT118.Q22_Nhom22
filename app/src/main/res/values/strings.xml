@@ -6,5 +6,12 @@
     <string name="profile_avatar_desc">Ảnh đại diện người dùng</string>
     <string name="profile_info_label_name">Tên</string>
     <string name="profile_info_label_email">Email</string>
+    <string name="profile_info_label_phone">Số điện thoại</string>
+    <string name="profile_info_label_address">Địa chỉ</string>
+    <string name="profile_edit_button">Chỉnh sửa hồ sơ</string>
+    <string name="profile_save_button">Lưu thay đổi</string>
+    <string name="profile_cancel_button">Hủy</string>
+    <string name="profile_phone_placeholder">Chưa cập nhật số điện thoại</string>
+    <string name="profile_address_placeholder">Chưa cập nhật địa chỉ</string>
     <string name="profile_sign_out">Đăng xuất</string>
 </resources>

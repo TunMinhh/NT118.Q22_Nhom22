@@ -23,6 +23,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.loginapp.auth.AuthViewModel
 import androidx.compose.runtime.setValue
 
 // Các tab trong bottom navigation
@@ -38,12 +39,12 @@ private val bottomTabs = listOf(BottomTab.Home, BottomTab.Movies, BottomTab.Cine
 // Màn hình chính chứa BottomNavigationBar — được gắn sau khi đăng nhập thành công
 @Composable
 fun MainScreen(
-    displayName: String?,
-    userEmail: String?,
-    infoMessage: String?,
+    authViewModel: AuthViewModel,
     onMovieClick: (String) -> Unit,
-    onSignOutClick: () -> Unit
+    onSignOutClick: () -> Unit,
+    onHistoryClick: () -> Unit
 ) {
+    val uiState = authViewModel.uiState
     val innerNavController = rememberNavController()
     var showBottomBar by remember { mutableStateOf(true) }
 
@@ -82,9 +83,9 @@ fun MainScreen(
         ) {
             composable(BottomTab.Home.route) {
                 HomeScreen(
-                    displayName = displayName,
-                    userEmail = userEmail,
-                    infoMessage = infoMessage,
+                    displayName = uiState.displayName,
+                    userEmail = uiState.userEmail,
+                    infoMessage = uiState.infoMessage,
                     onMovieClick = onMovieClick,
                     onSignOutClick = onSignOutClick,
 
@@ -105,9 +106,12 @@ fun MainScreen(
 
             composable(BottomTab.Profile.route) {
                 ProfileScreen(
-                    displayName = displayName,
-                    userEmail = userEmail,
-                    onSignOutClick = onSignOutClick
+                    uiState = uiState,
+                    onUpdateProfile = { name, phone, address, onComplete ->
+                        authViewModel.updateUserProfile(name, phone, address, onComplete)
+                    },
+                    onSignOutClick = onSignOutClick,
+                    onHistoryClick = onHistoryClick
                 )
             }
         }
