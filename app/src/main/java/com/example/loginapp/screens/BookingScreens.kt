@@ -1,5 +1,7 @@
 package com.example.loginapp.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,11 +44,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -64,6 +68,13 @@ import com.example.loginapp.auth.getShowtimeById
 import com.example.loginapp.auth.getShowtimesByMovieId
 import com.example.loginapp.ui.theme.LoginAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -74,6 +85,28 @@ private val BookingCard = Color(0xFF1B1E25)
 private val BookingCardAlt = Color(0xFF2A2E38)
 private val BookingRed = Color(0xFFE50914)
 private val BookingMuted = Color(0xFFA0A0A0)
+private const val VNPAY_CREATE_PAYMENT_URL =
+    "https://asia-southeast1-movieticket-1d6e0.cloudfunctions.net/createVnpayPayment"
+private const val VNPAY_RETURN_URL =
+    "https://asia-southeast1-movieticket-1d6e0.cloudfunctions.net/vnpayReturn"
+
+private data class PaymentMethodUi(
+    val id: String,
+    val name: String,
+    val description: String,
+    val badge: String,
+    val accentColor: Color
+)
+
+private val paymentMethods = listOf(
+    PaymentMethodUi(
+        id = "vnpay",
+        name = "VNPAY",
+        description = "Cổng thanh toán sandbox VNPAY",
+        badge = "VN",
+        accentColor = Color(0xFF0B65C2)
+    )
+)
 
 @Composable
 fun BookingCinemaScreen(
@@ -161,6 +194,8 @@ fun BookingTicketScreen(
     onBackClick: () -> Unit,
     onDoneClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val seats = remember(seatsText) {
         seatsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
     }
@@ -172,9 +207,20 @@ fun BookingTicketScreen(
     var isSaving by remember { mutableStateOf(false) }
     var successTicketId by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val selectedPaymentMethod = paymentMethods.first()
+    var isPaymentStarted by remember { mutableStateOf(false) }
+    var paymentUrl by remember { mutableStateOf<String?>(null) }
+    var paymentOrderId by remember { mutableStateOf<String?>(null) }
+    var paymentStatusText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(movieId, showtimeId) {
         isLoading = true
+        isPaymentStarted = false
+        successTicketId = null
+        errorMessage = null
+        paymentUrl = null
+        paymentOrderId = null
+        paymentStatusText = null
         getMoviesFromFirestore { movies ->
             movie = movies.firstOrNull { it.id == movieId || it.title == movieId }
             getShowtimeById(showtimeId) { showtimeResult ->
@@ -205,9 +251,46 @@ fun BookingTicketScreen(
         isSaving = isSaving,
         successTicketId = successTicketId,
         errorMessage = errorMessage,
+        selectedPaymentMethod = selectedPaymentMethod,
+        isPaymentStarted = isPaymentStarted,
+        paymentUrl = paymentUrl,
+        paymentOrderId = paymentOrderId,
+        paymentStatusText = paymentStatusText,
         onBackClick = onBackClick,
         onDoneClick = onDoneClick,
-        onConfirmClick = {
+        onStartPaymentClick = {
+            errorMessage = null
+            paymentStatusText = null
+
+            val currentShowtime = showtime
+            val currentMovie = movie
+            if (currentShowtime == null || currentMovie == null) {
+                errorMessage = "Không tìm thấy thông tin đặt vé."
+            } else {
+                isSaving = true
+                scope.launch {
+                    try {
+                        val orderId = "VNPAY${currentShowtime.id.filter { it.isLetterOrDigit() }}${System.currentTimeMillis()}"
+                        val url = createVnpayPaymentUrl(
+                            amount = currentShowtime.price * seats.size,
+                            orderId = orderId,
+                            orderInfo = "Thanh toan ve ${currentMovie.title.toVnpaySafeText()}",
+                            returnUrl = VNPAY_RETURN_URL
+                        )
+                        paymentUrl = url
+                        paymentOrderId = orderId
+                        paymentStatusText = "Đã mở cổng VNPAY. Sau khi thanh toán xong, quay lại app và bấm xác nhận."
+                        isPaymentStarted = true
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    } catch (exception: Exception) {
+                        errorMessage = exception.localizedMessage ?: "Không thể tạo liên kết thanh toán VNPAY."
+                    } finally {
+                        isSaving = false
+                    }
+                }
+            }
+        },
+        onConfirmPaymentClick = {
             val currentShowtime = showtime
             val currentMovie = movie
             if (currentShowtime == null || currentMovie == null) {
@@ -218,6 +301,7 @@ fun BookingTicketScreen(
                 createTicket(
                     cinemaName = cinema?.name ?: currentShowtime.cinemaId,
                     movieTitle = currentMovie.title,
+                    paymentMethod = selectedPaymentMethod.name,
                     seats = seats,
                     showtimeId = currentShowtime.id,
                     totalPrice = currentShowtime.price * seats.size,
@@ -339,9 +423,15 @@ private fun BookingTicketContent(
     isSaving: Boolean,
     successTicketId: String?,
     errorMessage: String?,
+    selectedPaymentMethod: PaymentMethodUi,
+    isPaymentStarted: Boolean,
+    paymentUrl: String?,
+    paymentOrderId: String?,
+    paymentStatusText: String?,
     onBackClick: () -> Unit,
     onDoneClick: () -> Unit,
-    onConfirmClick: () -> Unit
+    onStartPaymentClick: () -> Unit,
+    onConfirmPaymentClick: () -> Unit
 ) {
     BookingScaffold(title = "Xác nhận vé", onBackClick = onBackClick) {
         when {
@@ -363,8 +453,25 @@ private fun BookingTicketContent(
                             showtime = showtime.startTime,
                             seats = seats,
                             totalPrice = showtime.price * seats.size,
+                            paymentMethod = selectedPaymentMethod.name,
                             successTicketId = successTicketId
                         )
+                    }
+
+                    item {
+                        VnpayPaymentMethodCard()
+                    }
+
+                    if (isPaymentStarted && successTicketId == null) {
+                        item {
+                            PaymentSimulationCard(
+                                method = selectedPaymentMethod,
+                                totalPrice = showtime.price * seats.size,
+                                orderCode = paymentOrderId ?: "PAY-${showtime.id.takeLast(5).uppercase()}-${seats.size}G",
+                                paymentUrl = paymentUrl,
+                                statusText = paymentStatusText
+                            )
+                        }
                     }
 
                     if (!errorMessage.isNullOrBlank()) {
@@ -379,11 +486,24 @@ private fun BookingTicketContent(
                 }
 
                 BottomActionBar(
-                    title = if (successTicketId == null) "Thanh toán mô phỏng" else "Đặt vé thành công",
-                    subtitle = if (successTicketId == null) "ZaloPay Simulation" else "Mã vé: $successTicketId",
-                    buttonText = if (successTicketId == null) "Xác nhận đặt vé" else "Hoàn tất",
+                    title = when {
+                        successTicketId != null -> "Đặt vé thành công"
+                        isPaymentStarted -> "Chờ kết quả VNPAY"
+                        else -> "Thanh toán qua VNPAY"
+                    },
+                    subtitle = if (successTicketId == null) "Tổng tiền: ${formatPrice(showtime.price * seats.size)}" else "Mã vé: $successTicketId",
+                    buttonText = when {
+                        successTicketId != null -> "Hoàn tất"
+                        isSaving -> "Đang xử lý..."
+                        isPaymentStarted -> "Tôi đã thanh toán"
+                        else -> "Thanh toán"
+                    },
                     enabled = !isSaving,
-                    onClick = if (successTicketId == null) onConfirmClick else onDoneClick
+                    onClick = when {
+                        successTicketId != null -> onDoneClick
+                        isPaymentStarted -> onConfirmPaymentClick
+                        else -> onStartPaymentClick
+                    }
                 )
             }
         }
@@ -638,6 +758,190 @@ private fun LegendItem(color: Color, label: String) {
 }
 
 @Composable
+private fun VnpayPaymentMethodCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = BookingCard)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Phương thức thanh toán",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Thanh toán qua cổng VNPAY sandbox",
+                        color = BookingMuted,
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = "Bảo mật",
+                    color = Color(0xFF7CE2A8),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(0xFF173625))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0B65C2).copy(alpha = 0.14f))
+                    .border(1.dp, Color(0xFF0B65C2), RoundedCornerShape(14.dp))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0B65C2)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "VN",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp)
+                ) {
+                    Text("VNPAY", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Quét QR hoặc chọn ngân hàng trên cổng VNPAY", color = BookingMuted, fontSize = 12.sp)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(0xFF0B65C2)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaymentSimulationCard(
+    method: PaymentMethodUi,
+    totalPrice: Long,
+    orderCode: String,
+    paymentUrl: String?,
+    statusText: String?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = BookingCard)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(method.accentColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(method.badge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                }
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(
+                        text = if (method.id == "vnpay") "Cổng thanh toán VNPAY" else "Cổng thanh toán ${method.name}",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (method.id == "vnpay") "Sandbox VNPAY qua Cloud Functions" else "Giả lập môi trường thanh toán",
+                        color = BookingMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF0E1015))
+                    .border(1.dp, method.accentColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PaymentInfoLine(label = if (method.id == "vnpay") "Mã đơn VNPAY" else "Mã thanh toán", value = orderCode)
+                    PaymentInfoLine(label = "Số tiền", value = formatPrice(totalPrice))
+                    PaymentInfoLine(label = "Phương thức", value = method.name)
+                    PaymentInfoLine(
+                        label = "Trạng thái",
+                        value = if (method.id == "vnpay") "Đã chuyển sang VNPAY" else "Đang chờ xác nhận"
+                    )
+                    if (!paymentUrl.isNullOrBlank()) {
+                        PaymentInfoLine(label = "Link", value = paymentUrl)
+                    }
+                }
+            }
+
+            Text(
+                text = statusText ?: if (method.id == "vnpay") {
+                    "App đã mở trang VNPAY sandbox. Sau khi thanh toán thành công, quay lại app và bấm Tôi đã thanh toán để hoàn tất vé."
+                } else {
+                    "Trong app thật, bước này sẽ chuyển sang SDK/cổng thanh toán. Ở bản mô phỏng, hãy bấm Xác nhận đã thanh toán để tạo vé và giữ ghế."
+                },
+                color = BookingMuted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PaymentInfoLine(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = BookingMuted, fontSize = 13.sp)
+        Text(
+            value,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(start = 18.dp)
+                .weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun TicketSummaryCard(
     movieTitle: String,
     cinemaName: String,
@@ -645,6 +949,7 @@ private fun TicketSummaryCard(
     showtime: String,
     seats: List<String>,
     totalPrice: Long,
+    paymentMethod: String,
     successTicketId: String?
 ) {
     Card(
@@ -665,7 +970,7 @@ private fun TicketSummaryCard(
             TicketLine(label = "Suất chiếu", value = formatDateTime(showtime))
             TicketLine(label = "Ghế", value = seats.joinToString(", "))
             TicketLine(label = "Tổng tiền", value = formatPrice(totalPrice))
-            TicketLine(label = "Thanh toán", value = "ZaloPay Simulation")
+            TicketLine(label = "Thanh toán", value = paymentMethod)
 
             if (successTicketId != null) {
                 TicketLine(label = "Mã vé", value = successTicketId)
@@ -740,6 +1045,50 @@ private fun EmptyText(text: String) {
     }
 }
 
+private suspend fun createVnpayPaymentUrl(
+    amount: Long,
+    orderId: String,
+    orderInfo: String,
+    returnUrl: String
+): String = withContext(Dispatchers.IO) {
+    val payload = JSONObject()
+        .put("amount", amount)
+        .put("orderId", orderId)
+        .put("orderInfo", orderInfo)
+        .put("returnUrl", returnUrl)
+        .toString()
+
+    val connection = (URL(VNPAY_CREATE_PAYMENT_URL).openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"
+        connectTimeout = 15000
+        readTimeout = 15000
+        doOutput = true
+        setRequestProperty("Content-Type", "application/json")
+        setRequestProperty("Accept", "application/json")
+    }
+
+    try {
+        OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+            writer.write(payload)
+        }
+
+        val responseCode = connection.responseCode
+        val responseBody = if (responseCode in 200..299) {
+            connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } else {
+            connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        }
+
+        if (responseCode !in 200..299) {
+            throw IllegalStateException("VNPAY trả lỗi $responseCode: $responseBody")
+        }
+
+        JSONObject(responseBody).getString("paymentUrl")
+    } finally {
+        connection.disconnect()
+    }
+}
+
 private fun rowName(index: Int): String = ('A'.code + index).toChar().toString()
 
 private fun formatHour(value: String): String {
@@ -769,6 +1118,13 @@ private fun formatDateTime(value: String): String {
 
 private fun formatPrice(value: Long): String {
     return String.format(Locale.US, "%,d VND", value)
+}
+
+private fun String.toVnpaySafeText(): String {
+    return this
+        .replace(Regex("[^a-zA-Z0-9 ]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
 }
 
 private val previewCinema = Cinema(
@@ -858,11 +1214,17 @@ private fun BookingTicketScreenPreview() {
             seats = listOf("B1", "B2"),
             isLoading = false,
             isSaving = false,
-            successTicketId = "tk_888",
+            successTicketId = null,
             errorMessage = null,
+            selectedPaymentMethod = paymentMethods[0],
+            isPaymentStarted = true,
+            paymentUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?...",
+            paymentOrderId = "vnpay_st_101_preview",
+            paymentStatusText = "Đã mở cổng VNPAY. Sau khi thanh toán xong, quay lại app và bấm xác nhận.",
             onBackClick = {},
             onDoneClick = {},
-            onConfirmClick = {}
+            onStartPaymentClick = {},
+            onConfirmPaymentClick = {}
         )
     }
 }
