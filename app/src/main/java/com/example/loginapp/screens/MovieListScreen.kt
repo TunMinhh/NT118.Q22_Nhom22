@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -31,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,6 +57,8 @@ private val AccentRed = Color(0xFFE50914)
 fun MovieListScreen(onMovieClick: (String) -> Unit) {
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var hasLoaded by remember { mutableStateOf(false) }
+    val selectedGenres = remember { mutableStateListOf<String>() }
+    var selectedAgeRating by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         getMoviesFromFirestore {
@@ -98,8 +103,36 @@ fun MovieListScreen(onMovieClick: (String) -> Unit) {
         return
     }
 
-    val nowShowing = movieList.filter { it.isShowing }
-    val comingSoon = movieList.filterNot { it.isShowing }
+    val genres = remember(movieList) {
+        movieList
+            .flatMap { it.genres }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }
+    val ageRatings = remember(movieList) {
+        val priority = listOf("P", "K", "T13", "C13", "T16", "C16", "T18", "C18")
+        movieList
+            .map { it.ageRating.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sortedWith(compareBy<String> {
+                val index = priority.indexOf(it.uppercase(Locale.US))
+                if (index == -1) Int.MAX_VALUE else index
+            }.thenBy { it })
+    }
+    val filteredMovies = movieList.filter { movie ->
+        val matchesGenre = selectedGenres.isEmpty() ||
+            selectedGenres.all { selectedGenre ->
+                movie.genres.any { it.equals(selectedGenre, ignoreCase = true) }
+            }
+        val matchesAgeRating = selectedAgeRating == null ||
+            movie.ageRating.equals(selectedAgeRating, ignoreCase = true)
+        matchesGenre && matchesAgeRating
+    }
+    val nowShowing = filteredMovies.filter { it.isShowing }
+    val comingSoon = filteredMovies.filterNot { it.isShowing }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -108,6 +141,27 @@ fun MovieListScreen(onMovieClick: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            MovieFilterPanel(
+                genres = genres,
+                ageRatings = ageRatings,
+                selectedGenres = selectedGenres,
+                selectedAgeRating = selectedAgeRating,
+                onGenreToggle = { genre ->
+                    if (selectedGenres.contains(genre)) {
+                        selectedGenres.remove(genre)
+                    } else {
+                        selectedGenres.add(genre)
+                    }
+                },
+                onAgeRatingSelected = { selectedAgeRating = it },
+                onClearClick = {
+                    selectedGenres.clear()
+                    selectedAgeRating = null
+                }
+            )
+        }
+
         item(span = { GridItemSpan(maxLineSpan) }) {
             MovieSectionHeader(text = "Đang chiếu")
         }
@@ -136,6 +190,149 @@ fun MovieListScreen(onMovieClick: (String) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun MovieFilterPanel(
+    genres: List<String>,
+    ageRatings: List<String>,
+    selectedGenres: List<String>,
+    selectedAgeRating: String?,
+    onGenreToggle: (String) -> Unit,
+    onAgeRatingSelected: (String?) -> Unit,
+    onClearClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Bộ lọc phim",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (selectedGenres.isNotEmpty() || selectedAgeRating != null) {
+                Text(
+                    text = "Xóa lọc",
+                    color = AccentRed,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(onClick = onClearClick)
+                )
+            }
+        }
+
+        FilterRow(
+            title = "Thể loại",
+            options = genres,
+            selectedOptions = selectedGenres,
+            onAllSelected = { selectedGenres.forEach { onGenreToggle(it) } },
+            onOptionToggle = onGenreToggle
+        )
+
+        SingleChoiceFilterRow(
+            title = "Độ tuổi",
+            options = ageRatings,
+            selectedOption = selectedAgeRating,
+            onOptionSelected = onAgeRatingSelected
+        )
+    }
+}
+
+@Composable
+private fun FilterRow(
+    title: String,
+    options: List<String>,
+    selectedOptions: List<String>,
+    onAllSelected: () -> Unit,
+    onOptionToggle: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title,
+            color = Color.Gray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChipText(
+                    text = "Tất cả",
+                    selected = selectedOptions.isEmpty(),
+                    onClick = onAllSelected
+                )
+            }
+            lazyRowItems(options, key = { it }) { option ->
+                FilterChipText(
+                    text = option,
+                    selected = selectedOptions.contains(option),
+                    onClick = { onOptionToggle(option) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SingleChoiceFilterRow(
+    title: String,
+    options: List<String>,
+    selectedOption: String?,
+    onOptionSelected: (String?) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title,
+            color = Color.Gray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChipText(
+                    text = "Tất cả",
+                    selected = selectedOption == null,
+                    onClick = { onOptionSelected(null) }
+                )
+            }
+            lazyRowItems(options, key = { it }) { option ->
+                FilterChipText(
+                    text = option,
+                    selected = option == selectedOption,
+                    onClick = { onOptionSelected(option) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterChipText(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (selected) AccentRed else Color(0xFFEFEFEF)
+    val textColor = if (selected) Color.White else Color(0xFF333333)
+
+    Text(
+        text = text,
+        color = textColor,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+    )
 }
 
 @Composable
