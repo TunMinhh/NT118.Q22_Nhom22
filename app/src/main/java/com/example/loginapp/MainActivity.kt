@@ -127,6 +127,9 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
                 onMovieClick = { movieId ->
                     navController.navigate("${AppRoute.MOVIE_DETAIL}/${Uri.encode(movieId)}")
                 },
+                onCinemaShowtimeClick = { movieId, showtimeId ->
+                    navController.navigate("${AppRoute.BOOKING_SEAT}/${Uri.encode(movieId)}/${Uri.encode(showtimeId)}")
+                },
                 onSignOutClick = {
                     authViewModel.signOut()
                     navController.navigate(AppRoute.LOGIN) {

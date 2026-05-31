@@ -41,6 +41,7 @@ private val bottomTabs = listOf(BottomTab.Home, BottomTab.Movies, BottomTab.Cine
 fun MainScreen(
     authViewModel: AuthViewModel,
     onMovieClick: (String) -> Unit,
+    onCinemaShowtimeClick: (movieId: String, showtimeId: String) -> Unit,
     onSignOutClick: () -> Unit,
     onHistoryClick: () -> Unit
 ) {
@@ -101,7 +102,7 @@ fun MainScreen(
             }
 
             composable(BottomTab.Cinema.route) {
-                CinemaScreen()
+                CinemaScreen(onShowtimeClick = onCinemaShowtimeClick)
             }
 
             composable(BottomTab.Profile.route) {

@@ -58,6 +58,25 @@ fun getShowtimesByMovieId(movieId: String, onResult: (List<Showtime>) -> Unit) {
         }
 }
 
+fun getShowtimesByCinemaId(cinemaId: String, onResult: (List<Showtime>) -> Unit) {
+    val db = FirebaseFirestore.getInstance()
+
+    db.collection("showtimes")
+        .whereEqualTo("cinemaId", cinemaId)
+        .get()
+        .addOnSuccessListener { result ->
+            val showtimes = result.map { document ->
+                val showtime = document.toObject(Showtime::class.java)
+                showtime.copy(id = showtime.id.ifBlank { document.id })
+            }
+            onResult(showtimes)
+        }
+        .addOnFailureListener { exception ->
+            println("Error getting showtimes by cinema: $exception")
+            onResult(emptyList())
+        }
+}
+
 fun getShowtimeById(showtimeId: String, onResult: (Showtime?) -> Unit) {
     val db = FirebaseFirestore.getInstance()
 
