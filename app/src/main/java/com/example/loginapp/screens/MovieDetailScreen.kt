@@ -344,7 +344,7 @@ fun MovieDetailScreen(
                 Icon(Icons.Default.ArrowBackIosNew, contentDescription = "Quay về", tint = textColor)
             }
             Text("Chi tiết phim", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Icon(Icons.Default.BookmarkBorder, contentDescription = "Dấu trang", tint = textColor)
+            Spacer(modifier = Modifier.size(24.dp))
         }
 
         // 2. Khu vực Banner & Poster
