@@ -2,6 +2,7 @@ package com.example.loginapp.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,8 +27,10 @@ import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -49,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +71,10 @@ import com.example.loginapp.auth.getMoviesFromFirestore
 import com.example.loginapp.auth.getRoomById
 import com.example.loginapp.auth.getShowtimeById
 import com.example.loginapp.auth.getShowtimesByMovieId
+import com.example.loginapp.auth.lockSeat
+import com.example.loginapp.auth.observeSeatLocks
+import com.example.loginapp.auth.unlockAllUserSeats
+import com.example.loginapp.auth.unlockSeat
 import com.example.loginapp.ui.theme.LoginAppTheme
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
@@ -138,17 +147,52 @@ fun BookingCinemaScreen(
     )
 }
 
+enum class DemoMode {
+    NORMAL,         // Chọn ghế đặt vé (màu đỏ)
+    SIMULATE_HOLD   // Giả lập giữ ghế (màu vàng)
+}
+
 @Composable
 fun BookingSeatScreen(
     showtimeId: String,
     onBackClick: () -> Unit,
     onContinueClick: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
     var showtime by remember { mutableStateOf<Showtime?>(null) }
     var room by remember { mutableStateOf<Room?>(null) }
     var cinema by remember { mutableStateOf<Cinema?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     val selectedSeats = remember { mutableStateListOf<String>() }
+
+    // Chế độ demo
+    var demoMode by remember { mutableStateOf(DemoMode.NORMAL) }
+    var persistDemoLocks by remember { mutableStateOf(false) }
+
+    // Danh sách ghế đang bị người khác khoá (real-time)
+    var lockedByOtherSeats by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Bắt đầu lắng nghe Firestore real-time ngay khi có showtimeId
+    // DisposableEffect đảm bảo huỷ listener và giải phóng lock khi thoát màn hình
+    DisposableEffect(showtimeId, currentUserId, persistDemoLocks) {
+        val registration = observeSeatLocks(showtimeId) { locks ->
+            lockedByOtherSeats = locks
+                .filter { it.userId != currentUserId }   // chỉ lấy lock của người KHÁC
+                .map { it.seatName }
+        }
+        onDispose {
+            registration.remove()          // huỷ Firestore listener
+            if (currentUserId.isNotBlank()) {
+                unlockAllUserSeats(showtimeId, currentUserId)  // giải phóng mọi lock của user này
+            }
+            // Chỉ giải phóng các lock giả lập của demo nếu KHÔNG chọn chế độ giữ cố định
+            if (!persistDemoLocks) {
+                unlockAllUserSeats(showtimeId, "dummy_user_simulated")
+            }
+        }
+    }
 
     LaunchedEffect(showtimeId) {
         isLoading = true
@@ -175,10 +219,57 @@ fun BookingSeatScreen(
         room = room,
         cinema = cinema,
         selectedSeats = selectedSeats,
+        lockedByOtherSeats = lockedByOtherSeats,
+        showtimeId = showtimeId,
         isLoading = isLoading,
+        demoMode = demoMode,
+        onDemoModeChange = { demoMode = it },
+        persistDemoLocks = persistDemoLocks,
+        onPersistDemoLocksChange = { persistDemoLocks = it },
         onBackClick = onBackClick,
         onSeatToggle = { seat ->
-            if (selectedSeats.contains(seat)) selectedSeats.remove(seat) else selectedSeats.add(seat)
+            if (demoMode == DemoMode.SIMULATE_HOLD) {
+                // Chế độ GIẢ LẬP: click bất kỳ ghế trống nào để giữ (vàng), click tiếp để bỏ giữ
+                val isLockedByDummy = lockedByOtherSeats.contains(seat)
+                if (isLockedByDummy) {
+                    unlockSeat(showtimeId, seat, "dummy_user_simulated")
+                } else {
+                    // Nếu ghế đang được chọn đặt vé (đỏ) thì bỏ chọn trước khi khóa vàng
+                    if (selectedSeats.contains(seat)) {
+                        selectedSeats.remove(seat)
+                        if (currentUserId.isNotBlank()) {
+                            unlockSeat(showtimeId, seat, currentUserId)
+                        }
+                    }
+                    lockSeat(showtimeId, seat, "dummy_user_simulated") { _ -> }
+                }
+            } else {
+                // Chế độ BÌNH THƯỜNG: Chọn ghế đặt vé (đỏ)
+                if (selectedSeats.contains(seat)) {
+                    // Bỏ chọn → huỷ lock
+                    selectedSeats.remove(seat)
+                    if (currentUserId.isNotBlank()) {
+                        unlockSeat(showtimeId, seat, currentUserId)
+                    }
+                } else {
+                    // Chọn → thử khoá ghế
+                    if (currentUserId.isBlank()) {
+                        selectedSeats.add(seat)
+                        return@BookingSeatContent
+                    }
+                    lockSeat(showtimeId, seat, currentUserId) { success ->
+                        if (success) {
+                            selectedSeats.add(seat)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "⚠️ Ghế $seat đang được người khác giữ. Vui lòng chọn ghế khác!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
         },
         onContinueClick = {
             onContinueClick(selectedSeats.joinToString(","))
@@ -362,7 +453,13 @@ private fun BookingSeatContent(
     room: Room?,
     cinema: Cinema?,
     selectedSeats: List<String>,
+    lockedByOtherSeats: List<String> = emptyList(),
+    showtimeId: String = "",
     isLoading: Boolean,
+    demoMode: DemoMode = DemoMode.NORMAL,
+    onDemoModeChange: (DemoMode) -> Unit = {},
+    persistDemoLocks: Boolean = false,
+    onPersistDemoLocksChange: (Boolean) -> Unit = {},
     onBackClick: () -> Unit,
     onSeatToggle: (String) -> Unit,
     onContinueClick: () -> Unit
@@ -390,11 +487,32 @@ private fun BookingSeatContent(
                             )
                         )
                     }
+
+                    // Bảng điều khiển chọn chế độ Demo
+                    item {
+                        DemoSimulationCard(
+                            demoMode = demoMode,
+                            onDemoModeChange = onDemoModeChange,
+                            persistDemoLocks = persistDemoLocks,
+                            onPersistDemoLocksChange = onPersistDemoLocksChange,
+                            showtimeId = showtimeId
+                        )
+                    }
+
+                    // Banner cảnh báo nếu có ghế đang bị người khác giữ
+                    if (lockedByOtherSeats.isNotEmpty()) {
+                        item {
+                            SeatLockBanner(count = lockedByOtherSeats.size)
+                        }
+                    }
+
                     item {
                         SeatMapCard(
                             room = room,
                             bookedSeats = showtime.bookedSeats,
                             selectedSeats = selectedSeats,
+                            lockedByOtherSeats = lockedByOtherSeats,
+                            isSimulateMode = (demoMode == DemoMode.SIMULATE_HOLD),
                             onSeatToggle = onSeatToggle
                         )
                     }
@@ -411,6 +529,180 @@ private fun BookingSeatContent(
         }
     }
 }
+
+/** Banner nhỏ hiển thị khi có ghế đang bị người khác giữ real-time */
+@Composable
+private fun SeatLockBanner(count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(Color(0xFF3D2E00), Color(0xFF5C4400))
+                )
+            )
+            .border(1.dp, Color(0xFFD4A017).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Lock,
+            contentDescription = null,
+            tint = Color(0xFFD4A017),
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = " Có $count ghế đang được người khác giữ (cập nhật real-time)",
+            color = Color(0xFFFFD95A),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun DemoSimulationCard(
+    demoMode: DemoMode,
+    onDemoModeChange: (DemoMode) -> Unit,
+    persistDemoLocks: Boolean,
+    onPersistDemoLocksChange: (Boolean) -> Unit,
+    showtimeId: String
+) {
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = BookingCardAlt)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Timer,
+                    contentDescription = null,
+                    tint = Color(0xFFD4A017),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "BẢNG ĐIỀU KHIỂN DEMO GIẢ LẬP",
+                    color = Color(0xFFD4A017),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = "Chọn chế độ thao tác trên sơ đồ ghế:",
+                color = BookingMuted,
+                fontSize = 12.sp
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Nút Đặt vé bình thường
+                Button(
+                    onClick = { onDemoModeChange(DemoMode.NORMAL) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (demoMode == DemoMode.NORMAL) BookingRed else Color(0xFF343844)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "1. Chọn ghế đặt vé",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Nút Giả lập giữ ghế
+                Button(
+                    onClick = { onDemoModeChange(DemoMode.SIMULATE_HOLD) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (demoMode == DemoMode.SIMULATE_HOLD) Color(0xFFD4A017) else Color(0xFF343844)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "2. Giả lập giữ ghế",
+                        color = if (demoMode == DemoMode.SIMULATE_HOLD) Color(0xFF1A1A1A) else Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            // Hướng dẫn tương ứng
+            Text(
+                text = if (demoMode == DemoMode.SIMULATE_HOLD) {
+                    "👉 Đang ở chế độ GIẢ LẬP: Click bất kỳ ghế trống nào để đổi sang màu Vàng (người khác giữ), hoặc click ghế màu Vàng để giải phóng."
+                } else {
+                    "👉 Đang ở chế độ BÌNH THƯỜNG: Click chọn ghế để đặt vé (màu Đỏ). Ghế màu Vàng đã bị khóa và không thể chọn."
+                },
+                color = if (demoMode == DemoMode.SIMULATE_HOLD) Color(0xFFFFD95A) else BookingMuted,
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+
+            // Các nút Xác nhận giữ & Xóa giữ cố định (Chỉ hiển thị khi đang ở chế độ Giả lập)
+            if (demoMode == DemoMode.SIMULATE_HOLD) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            onPersistDemoLocksChange(true)
+                            Toast.makeText(context, "📌 Đã khóa cố định các ghế giả lập trên Firestore!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (persistDemoLocks) Color(0xFF2ECC71) else Color(0xFFD4A017)
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (persistDemoLocks) "Đã xác nhận giữ ✓" else "Xác nhận giữ ghế",
+                            color = if (persistDemoLocks) Color.White else Color(0xFF1A1A1A),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            onPersistDemoLocksChange(false)
+                            unlockAllUserSeats(showtimeId, "dummy_user_simulated")
+                            Toast.makeText(context, "🧹 Đã xóa toàn bộ ghế giả lập!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4B4E57)
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Xóa tất cả giả lập",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 private fun BookingTicketContent(
@@ -654,6 +946,8 @@ private fun SeatMapCard(
     room: Room?,
     bookedSeats: List<String>,
     selectedSeats: List<String>,
+    lockedByOtherSeats: List<String> = emptyList(),
+    isSimulateMode: Boolean = false,
     onSeatToggle: (String) -> Unit
 ) {
     val totalRows = room?.totalRows?.takeIf { it > 0 } ?: 6
@@ -695,6 +989,8 @@ private fun SeatMapCard(
                             seatName = seatName,
                             isBooked = bookedSeats.contains(seatName),
                             isSelected = selectedSeats.contains(seatName),
+                            isLockedByOther = lockedByOtherSeats.contains(seatName),
+                            isSimulateMode = isSimulateMode,
                             onSeatToggle = onSeatToggle
                         )
                     }
@@ -712,14 +1008,23 @@ private fun SeatBox(
     seatName: String,
     isBooked: Boolean,
     isSelected: Boolean,
+    isLockedByOther: Boolean = false,
+    isSimulateMode: Boolean = false,
     onSeatToggle: (String) -> Unit
 ) {
     val background = when {
-        isBooked -> Color(0xFF4B4E57)
-        isSelected -> BookingRed
-        else -> Color(0xFF343844)
+        isBooked        -> Color(0xFF4B4E57)
+        isSelected      -> BookingRed
+        isLockedByOther -> Color(0xFFD4A017)   // vàng đồng — người khác đang giữ
+        else            -> Color(0xFF343844)
     }
-    val textColor = if (isBooked) Color(0xFF8A8D96) else Color.White
+    val textColor = when {
+        isBooked        -> Color(0xFF8A8D96)
+        isLockedByOther -> Color(0xFF1A1A1A)
+        else            -> Color.White
+    }
+    // Nếu đang ở chế độ Giả lập, cho phép click vào cả ghế màu vàng (để hủy giữ)
+    val isDisabled = isBooked || (isLockedByOther && !isSimulateMode)
 
     Box(
         modifier = Modifier
@@ -727,24 +1032,56 @@ private fun SeatBox(
             .size(width = 30.dp, height = 28.dp)
             .clip(RoundedCornerShape(7.dp))
             .background(background)
-            .then(if (isBooked) Modifier else Modifier.clickable { onSeatToggle(seatName) }),
+            .then(
+                if (isDisabled) Modifier
+                else Modifier.clickable { onSeatToggle(seatName) }
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Text(seatName.drop(1), color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        if (isLockedByOther) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Ghế đang được giữ",
+                tint = Color(0xFF1A1A1A),
+                modifier = Modifier.size(12.dp)
+            )
+        } else {
+            Text(seatName.drop(1), color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
 @Composable
 private fun SeatLegend() {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        LegendItem(color = Color(0xFF343844), label = "Còn trống")
-        LegendItem(color = BookingRed, label = "Đang chọn")
-        LegendItem(color = Color(0xFF4B4E57), label = "Đã đặt")
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            LegendItem(color = Color(0xFF343844), label = "Còn trống")
+            LegendItem(color = BookingRed,        label = "Đang chọn")
+            LegendItem(color = Color(0xFF4B4E57), label = "Đã đặt")
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            LegendItem(
+                color = Color(0xFFD4A017),
+                label = "Đang được người khác giữ ",
+                labelColor = Color(0xFFD4A017)
+            )
+        }
     }
 }
 
 @Composable
-private fun LegendItem(color: Color, label: String) {
+private fun LegendItem(
+    color: Color,
+    label: String,
+    labelColor: Color = BookingMuted
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -753,7 +1090,7 @@ private fun LegendItem(color: Color, label: String) {
                 .background(color)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(label, color = BookingMuted, fontSize = 11.sp)
+        Text(label, color = labelColor, fontSize = 11.sp)
     }
 }
 

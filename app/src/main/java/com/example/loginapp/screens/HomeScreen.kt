@@ -30,7 +30,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
 import com.example.loginapp.R
 import com.example.loginapp.auth.Movie
 import com.example.loginapp.auth.getMoviesFromFirestore
@@ -49,10 +54,12 @@ val giftList = listOf(
     Pair(R.drawable.voucher_khuyen_mai, "voucher khuyến mãi")
 )
 
+data class VideoModel(val thumbnail: Int, val title: String, val videoUrl: String)
+
 val videoList = listOf(
-    Pair(R.drawable.spiderman_brand_new_day_trailer, "Trailer Spider-Man Brand New Day "),
-    Pair(R.drawable.avatar_lua_va_trotan, "Trailer Avatar lửa và tro tàn"),
-    Pair(R.drawable.movie3, "Thoát khỏi tận thế")
+    VideoModel(R.drawable.spiderman_brand_new_day_trailer, "Trailer Spider-Man Brand New Day ", "JfVOs4VSpmA"),
+    VideoModel(R.drawable.avatar_lua_va_trotan, "Trailer Avatar lửa và tro tàn", "d9MyW72ELq0"),
+    VideoModel(R.drawable.movie3, "Thoát khỏi tận thế", "Way9ECfJ_zQ")
 )
 
 
@@ -69,6 +76,7 @@ fun HomeScreen(
 
     var movieList by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     // Gọi Firestore khi mở màn hình
     LaunchedEffect(Unit) {
@@ -243,7 +251,22 @@ fun HomeScreen(
                             SectionHeader("Videos")
                             androidx.compose.foundation.lazy.LazyRow {
                                 items(videoList) { item ->
-                                    VideoItem(image = item.first, title = item.second)
+                                    VideoItem(
+                                        image = item.thumbnail,
+                                        title = item.title,
+                                        onClick = {
+                                            // Mở YouTube app hoặc trình duyệt
+                                            val youtubeAppUri = Uri.parse("vnd.youtube:${item.videoUrl}")
+                                            val youtubeFallbackUri = Uri.parse("https://www.youtube.com/watch?v=${item.videoUrl}")
+                                            val appIntent = Intent(Intent.ACTION_VIEW, youtubeAppUri)
+                                            val webIntent = Intent(Intent.ACTION_VIEW, youtubeFallbackUri)
+                                            try {
+                                                context.startActivity(appIntent)
+                                            } catch (e: Exception) {
+                                                context.startActivity(webIntent)
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -316,6 +339,7 @@ fun HomeScreen(
                 }
             }
         }
+
     }
 }
 
@@ -502,12 +526,13 @@ fun NewsSection(title: String, items: List<Pair<Int, String>>) {
 }
 
 @Composable
-fun VideoItem(image: Int, title: String) {
+fun VideoItem(image: Int, title: String, onClick: () -> Unit) {
 
     Column(
         modifier = Modifier
             .width(220.dp)
             .padding(end = 12.dp)
+            .clickable(onClick = onClick)
     ) {
 
         Box {
@@ -524,12 +549,14 @@ fun VideoItem(image: Int, title: String) {
 
             // icon play
             Icon(
-                imageVector = Icons.Default.ArrowForwardIos,
+                imageVector = Icons.Default.PlayArrow,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(30.dp)
+                    .size(36.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    .padding(6.dp)
             )
         }
 
